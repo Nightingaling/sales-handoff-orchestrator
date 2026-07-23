@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Miscellaneous
+*.log
+*.tmp
+*.bak
+*.orig
+.DS_Store
+
+# Project Specific
+temp_state/
+.pytest_cache/

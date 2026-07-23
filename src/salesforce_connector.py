@@ -1,0 +1,122 @@
+import asyncio
+from simple_salesforce import Salesforce
+from simple_salesforce.exceptions import SalesforceAuthenticationFailed
+from . import config
+import logging
+
+logger = logging.getLogger(__name__)
+
+class SalesforceConnector:
+    """Handles connection and data retrieval from Salesforce."""
+
+    def __init__(self):
+        logger.info("SalesforceConnector.__init__: Initializing...")
+        self._sf_client = None
+        logger.info("SalesforceConnector.__init__: Initialization complete.")
+
+    async def _get_client(self):
+        if self._sf_client:
+            return self._sf_client
+
+        def _connect():
+            if all([config.SALESFORCE_USERNAME, config.SALESFORCE_PASSWORD, config.SALESFORCE_SECURITY_TOKEN, config.SALESFORCE_INSTANCE_URL]):
+                try:
+                    return Salesforce(
+                        username=config.SALESFORCE_USERNAME,
+                        password=config.SALESFORCE_PASSWORD,
+                        security_token=config.SALESFORCE_SECURITY_TOKEN,
+                        instance_url=config.SALESFORCE_INSTANCE_URL
+                    )
+                except SalesforceAuthenticationFailed as e:
+                    logger.error(f"Salesforce authentication failed. Please check your credentials in the .env file. Details: {e}", exc_info=True)
+                    return None
+                except Exception as e:
+                    logger.error(f"Failed to connect to Salesforce: {e}", exc_info=True)
+                    return None
+            return None
+
+        self._sf_client = await asyncio.to_thread(_connect)
+        return self._sf_client
+
+    async def get_closed_won_opportunity(self, opportunity_id: str) -> dict:
+        """
+        Retrieves details for a 'Closed Won' opportunity.
+
+        In a real application, you would query for opportunities that have
+        recently been updated to 'Closed Won'. For this example, we'll
+        just fetch a specific opportunity by ID and assume it's closed.
+        """
+        sf = await self._get_client()
+        if not sf:
+            logger.warning(
+                "Salesforce connection not configured. "
+                "Please set SALESFORCE_USERNAME, SALESFORCE_PASSWORD, "
+                "and SALESFORCE_SECURITY_TOKEN in your .env file."
+            )
+            # Return a mock object for demonstration purposes
+            return {
+                "Id": opportunity_id,
+                "Name": "Demo Opportunity",
+                "AccountId": "001xx000003DGb2AAG",
+                "Amount": 50000,
+                "StageName": "Closed Won",
+                # You would also fetch related documents/attachments here
+                "AttachedContentDocuments": {
+                    "records": [
+                        {"ContentDocument": {"Title": "Final Contract", "LatestPublishedVersionId": "069xx000001D4xZ"}},
+                        {"ContentDocument": {"Title": "Sales Notes", "LatestPublishedVersionId": "069xx000001D4xa"}},
+                    ]
+                }
+            }
+
+        def _fetch():
+            try:
+                # SOQL to get Opportunity and related ContentDocument links
+                soql_opp = f"""
+                SELECT Name, Account.Name, StageName,
+                    (SELECT ContentDocument.Id, ContentDocument.Title, ContentDocument.LatestPublishedVersionId
+                     FROM AttachedContentDocuments)
+                FROM Opportunity
+                WHERE Id = '{opportunity_id}'
+                """
+                opportunity = sf.query(soql_opp)
+
+                if opportunity["totalSize"] == 1:
+                    return opportunity["records"][0]
+                else:
+                    return None
+            except Exception as e:
+                print(f"Error fetching opportunity from Salesforce: {e}")
+                return None
+
+        return await asyncio.to_thread(_fetch)
+
+
+    async def get_document(self, content_version_id: str) -> bytes:
+        """
+        Retrieves a document from Salesforce.
+        """
+        sf = await self._get_client()
+        if not sf:
+            logger.warning(
+                "Salesforce connection not configured. "
+                "Please set SALESFORCE_USERNAME, SALESFORCE_PASSWORD, "
+                "and SALESFORCE_SECURITY_TOKEN in your .env file."
+            )
+            return None
+
+        try:
+            # This is a simplified example of getting a document.
+            # You would use the ContentVersion object and the VersionData field.
+            # The API call would look something like this:
+            def _get_doc():
+                # url = f"{sf.base_url}sobjects/ContentVersion/{content_version_id}/VersionData"
+                # response = sf.session.get(url, headers=sf.headers)
+                # return response.content
+                print(f"Fetching document with ContentVersionId: {content_version_id}")
+                # Returning mock data for now
+                return b"This is a mock document content."
+            return await asyncio.to_thread(_get_doc)
+        except Exception as e:
+            print(f"Error fetching document from Salesforce: {e}")
+            return None

@@ -1,0 +1,10 @@
+slack_sdk
+jira
+simple-salesforce
+python-dotenv
+aiofiles
+fastapi
+uvicorn
+openai
+requests
+aiohttp
