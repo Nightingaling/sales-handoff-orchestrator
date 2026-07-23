@@ -47,6 +47,14 @@ class HandoffOrchestrator:
             # 2. Parse Documents
             all_text = await self._parse_opportunity_documents(opportunity)
 
+            # Abort if no text was found, to prevent useless LLM calls.
+            if all_text == "No documents found or text could not be extracted.":
+                logger.warning("Aborting handoff: No text could be extracted from documents.")
+                return {
+                    "status": "error",
+                    "message": "Handoff aborted because no text could be extracted from the sales documents."
+                }
+
             # 3. Load Product Docs (on-the-fly)
             try:
                 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -165,7 +173,10 @@ class HandoffOrchestrator:
 
                 parse_tasks.append(self.document_parser.parse_document(file_path))
 
-            parsed_results = await asyncio.gather(*parse_tasks)
+            parsed_results = []
+            for task in parse_tasks:
+                parsed_results.append(await task)
+
             all_text = "\n\n".join(filter(None, parsed_results))
         
         shutil.rmtree(temp_dir)

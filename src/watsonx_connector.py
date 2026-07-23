@@ -60,7 +60,6 @@ class WatsonxConnector:
         3. Drafts a kickoff agenda.
         """
         async with self._semaphore:
-            await asyncio.sleep(1)
             prompt = f"""
             You are an AI assistant for a sales handoff process. Your task is to analyze sales documents, compare them to the official product documentation, and generate a set of assets for the post-sales team.
 
@@ -218,3 +217,4 @@ class WatsonxConnector:
                     "discrepancies": [{"item": "Processing Error", "reason": "An unexpected error occurred."}],
                     "kickoff_agenda": "Could not be generated due to an unexpected error."
                 }
+
