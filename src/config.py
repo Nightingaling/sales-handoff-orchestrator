@@ -13,6 +13,9 @@ SALESFORCE_INSTANCE_URL = os.getenv("SALESFORCE_INSTANCE_URL", "https://test.sal
 JIRA_SERVER = os.getenv("JIRA_SERVER")
 JIRA_USERNAME = os.getenv("JIRA_USERNAME")
 JIRA_API_TOKEN = os.getenv("JIRA_API_TOKEN")
+# Required for project creation on Jira Cloud (user's accountId) or Jira Server (username).
+# Find your accountId at: https://<your-domain>.atlassian.net/rest/api/3/myself
+JIRA_LEAD_ACCOUNT_ID = os.getenv("JIRA_LEAD_ACCOUNT_ID")
 
 # IBM Watsonx Configuration
 WATSONX_API_KEY = os.getenv("WATSONX_API_KEY")
@@ -22,6 +25,7 @@ WATSONX_URL = os.getenv("WATSONX_URL", "https://us-south.ml.cloud.ibm.com")
 # Slack Configuration
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
 SLACK_CHANNEL_ID = os.getenv("SLACK_CHANNEL_ID")
+SLACK_TECH_REVIEW_CHANNEL_ID = os.getenv("SLACK_TECH_REVIEW_CHANNEL_ID")
 
 # Product Capabilities (as a simple list for now, to be replaced by dynamic documentation)
 # In a real application, this might come from a database or a dedicated service.

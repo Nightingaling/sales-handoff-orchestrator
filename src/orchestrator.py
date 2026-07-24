@@ -2,6 +2,7 @@ import asyncio
 import aiofiles
 import shutil
 import json
+import requests
 from . import config
 from .document_parser import DocumentParser
 from .salesforce_connector import SalesforceConnector
@@ -70,7 +71,11 @@ class HandoffOrchestrator:
             
             # 4. Generate Handoff Assets via LLM
             logger.info("Calling Watsonx to generate handoff assets...")
-            handoff_assets = await self.vllm_connector.generate_handoff_assets(all_text, product_documentation)
+            try:
+                handoff_assets = await self.vllm_connector.generate_handoff_assets(all_text, product_documentation)
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Watsonx API request failed: {e}", exc_info=True)
+                return {"status": "error", "message": f"Failed to generate handoff assets due to a Watsonx API error: {e}"}
             logger.info("Watsonx processing complete.")
 
             # 5. Save State for Slack Approval
@@ -84,11 +89,8 @@ class HandoffOrchestrator:
             logger.info(f"Intermediate state saved to {state_file_path}")
 
             # 5. Send for Approval to Slack
-            await self.slack_connector.send_approval_message(
-                opportunity_name=opportunity["Name"],
-                opportunity_id=opportunity_id,
-                handoff_assets=handoff_assets
-            )
+            deal_data = self._build_deal_data(opportunity, opportunity_id, handoff_assets)
+            await self.slack_connector.send_slack_approval_message(deal_data)
 
             return {
                 "status": "pending_approval",
@@ -143,6 +145,102 @@ class HandoffOrchestrator:
             logger.error(f"An error occurred in provision_jira_project: {e}", exc_info=True)
             # Optionally, send a failure notification to Slack
             raise
+
+    async def handle_rejection(self, opportunity_id: str, rejected_by_name: str):
+        """
+        Handles the rejection of a handoff, notifies the sales rep, and cleans up.
+        """
+        logger.info(f"handle_rejection started for opportunity_id: {opportunity_id}")
+        state_file_path = os.path.join(TEMP_STATE_DIR, f"{opportunity_id}.json")
+
+        try:
+            # 1. Load State to get context for the notification
+            async with aiofiles.open(state_file_path, "r") as f:
+                state = json.loads(await f.read())
+            
+            opportunity = state["opportunity"]
+            handoff_assets = state["handoff_assets"]
+            discrepancies = handoff_assets.get("discrepancies", [])
+
+            # 2. Notify Sales Team of Rejection
+            await self.slack_connector.send_rejection_notification(
+                opportunity_name=opportunity['Name'],
+                discrepancies=discrepancies,
+                rejected_by=rejected_by_name
+            )
+
+            # 3. Clean up state file to prevent provisioning
+            os.remove(state_file_path)
+            logger.info(f"Cleaned up state file after rejection: {state_file_path}")
+
+        except FileNotFoundError:
+            logger.warning(f"State file for opportunity_id: {opportunity_id} not found during rejection. It might have already been processed or deleted.")
+            # No need to re-raise, as the end state (no file) is what we want.
+        except Exception as e:
+            logger.error(f"An error occurred in handle_rejection: {e}", exc_info=True)
+            # Re-raise to indicate a failure in the rejection process itself
+            raise
+
+    def _build_deal_data(self, opportunity: dict, opportunity_id: str, handoff_assets: dict) -> dict:
+        """
+        Transforms the raw Salesforce opportunity and Watsonx handoff_assets into
+        the flat ``deal_data`` dict expected by ``send_slack_approval_message``.
+        """
+        # Salesforce returns Amount as a float; format it as currency string.
+        raw_amount = opportunity.get("Amount")
+        if raw_amount is not None:
+            try:
+                amount = f"${float(raw_amount):,.0f}"
+            except (ValueError, TypeError):
+                amount = str(raw_amount)
+        else:
+            amount = "N/A"
+
+        # AE name: try the real Salesforce Owner field first, fall back gracefully.
+        ae_name = (
+            (opportunity.get("Owner") or {}).get("Name")
+            or opportunity.get("OwnerName")
+            or "N/A"
+        )
+
+        # Convert the discrepancies list into a single mrkdwn-formatted string.
+        discrepancy_lines = []
+        for item in handoff_assets.get("discrepancies", []):
+            severity = item.get("severity", 1)
+            try:
+                severity = int(severity)
+            except (ValueError, TypeError):
+                severity = 1
+
+            if severity >= 3:
+                icon = "🔴 *High Risk:*"
+            elif severity == 2:
+                icon = "🟡 *Medium Risk:*"
+            else:
+                icon = "🔵 *Low Risk:*"
+
+            discrepancy_lines.append(
+                f"{icon} {item.get('item', 'Unknown')} — {item.get('reason', '')}"
+            )
+
+        discrepancy_text = (
+            "\n".join(discrepancy_lines)
+            if discrepancy_lines
+            else "No discrepancies detected."
+        )
+
+        # Strip markdown headings from the kickoff agenda so it renders cleanly
+        # inside the Slack triple-fence code block (# headers look like plain text there).
+        kickoff_agenda = handoff_assets.get("kickoff_agenda", "No agenda generated.")
+
+        return {
+            "account_name":     opportunity.get("Name", "Unknown Account"),
+            "amount":           amount,
+            "ae_name":          ae_name,
+            "opportunity_id":   opportunity_id,
+            "discrepancy_text": discrepancy_text,
+            "kickoff_agenda":   kickoff_agenda,
+        }
 
     async def _parse_opportunity_documents(self, opportunity: dict) -> str:
         """Helper to ingest and parse all documents for an opportunity."""

@@ -1,6 +1,10 @@
-import logging
 import json
+import logging
+import urllib.parse
+
 from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
+from pydantic import BaseModel
+
 from .orchestrator import HandoffOrchestrator
 
 logger = logging.getLogger(__name__)
@@ -51,24 +55,118 @@ async def slack_interactive_endpoint(request: Request, background_tasks: Backgro
             
         if payload.get("type") == "block_actions":
             action = payload["actions"][0]
+            action_value = json.loads(action["value"])
+            opportunity_id = action_value["opportunity_id"]
+            user_name = payload["user"]["name"]
+            user_id = payload["user"]["id"]
+            
             if action["action_id"] == "approve_provision":
-                action_value = json.loads(action["value"])
-                opportunity_id = action_value["opportunity_id"]
-                
-                logger.info(f"Received 'approve_provision' action for opportunity ID: {opportunity_id}")
+                logger.info(f"Received 'approve_provision' action for opportunity ID: {opportunity_id} from user {user_name}")
                 
                 # Run the provisioning in the background
                 background_tasks.add_task(app.state.orchestrator.provision_jira_project, opportunity_id)
                 
-                # Let the user know the process has started
-                response_text = f"✅ Approved! Provisioning for opportunity `{opportunity_id}` has started."
-                return {"text": response_text, "response_type": "ephemeral", "replace_original": False}
+                # Let the user know the process has started and update the original message
+                response_text = f"✅ Approved by {user_name}. Provisioning has started."
+                return {"text": response_text, "response_type": "in_channel", "replace_original": True}
+
+            elif action["action_id"] == "reject_handoff":
+                logger.info(f"Received 'reject_handoff' action for opportunity ID: {opportunity_id} from user {user_name}")
+
+                # Run the rejection logic in the background
+                background_tasks.add_task(app.state.orchestrator.handle_rejection, opportunity_id, user_name)
+
+                # Send a private confirmation to the user who rejected
+                background_tasks.add_task(app.state.orchestrator.slack_connector.send_rejection_confirmation, opportunity_id, user_id)
+
+                # Update the original message to show it was rejected
+                response_text = f"❌ Handoff for {opportunity_id} rejected by {user_name}. The sales team has been notified."
+                return {"text": response_text, "response_type": "in_channel", "replace_original": True}
 
     except Exception as e:
         logger.error(f"Error processing Slack interactive payload: {e}", exc_info=True)
         # It's important to still return a 200 to Slack to avoid retry storms
     
     return {"status": "ok"}
+
+
+@app.post("/slack/interactivity", tags=["Slack"])
+async def slack_interactivity_endpoint(request: Request):
+    """
+    Receives interactive-component callbacks from Slack (button clicks).
+
+    Slack POSTs a URL-encoded body whose single field ``payload`` contains a
+    JSON-encoded action object.  This endpoint:
+
+    1. Decodes the URL-encoded body and parses the JSON payload.
+    2. Extracts ``action_id`` and ``value`` from the first action.
+    3. Handles ``approve_handoff`` (Jira provisioning placeholder) and
+       ``reject_handoff`` (flags the deal for AE review).
+    4. Always returns HTTP 200 so Slack does not retry the request.
+    """
+    body = await request.body()
+    # Slack sends:  payload=<url-encoded JSON>
+    form = urllib.parse.parse_qs(body.decode("utf-8"))
+
+    payload_str = form.get("payload", [None])[0]
+    if not payload_str:
+        raise HTTPException(status_code=400, detail="Missing payload field in request body")
+
+    try:
+        payload = json.loads(payload_str)
+    except json.JSONDecodeError as exc:
+        logger.error(f"slack_interactivity_endpoint: invalid JSON in payload — {exc}")
+        raise HTTPException(status_code=400, detail="Payload is not valid JSON")
+
+    # One-time URL-verification handshake Slack sends when you first register the endpoint
+    if payload.get("type") == "url_verification":
+        return {"challenge": payload.get("challenge")}
+
+    if payload.get("type") != "block_actions":
+        logger.warning(
+            f"slack_interactivity_endpoint: ignoring unsupported payload type "
+            f"'{payload.get('type')}'"
+        )
+        return {"status": "ignored"}
+
+    actions = payload.get("actions", [])
+    if not actions:
+        logger.warning("slack_interactivity_endpoint: block_actions payload contained no actions")
+        return {"status": "no_actions"}
+
+    action    = actions[0]
+    action_id = action.get("action_id")
+    value     = action.get("value")   # e.g. "approve_0068c00000abc123"
+
+    logger.info(
+        f"slack_interactivity_endpoint: received action_id='{action_id}' value='{value}'"
+    )
+
+    if action_id == "approve_handoff":
+        # TODO: Trigger Jira API
+        logger.info(
+            f"slack_interactivity_endpoint: approval confirmed — value='{value}'"
+        )
+        return {
+            "response_type": "in_channel",
+            "replace_original": True,
+            "text": "✅ Handoff approved. Jira provisioning will start shortly.",
+        }
+
+    if action_id == "reject_handoff":
+        logger.info(
+            f"slack_interactivity_endpoint: handoff flagged for AE review — value='{value}'"
+        )
+        return {
+            "response_type": "in_channel",
+            "replace_original": True,
+            "text": "🚩 Handoff flagged for AE review.",
+        }
+
+    logger.warning(
+        f"slack_interactivity_endpoint: unrecognised action_id '{action_id}'"
+    )
+    return {"status": "unrecognised_action"}
 
 
 @app.get("/", tags=["General"])

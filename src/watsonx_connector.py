@@ -96,7 +96,8 @@ class WatsonxConnector:
                 "discrepancies": [
                     {{
                         "item": "The deliverable or promise that has an issue.",
-                        "reason": "A brief explanation of why it's a discrepancy (e.g., 'Feature not available in Standard Tier', 'Custom feature not in documentation', 'Timeline is unrealistic')."
+                        "reason": "A brief explanation of why it's a discrepancy (e.g., 'Feature not available in Standard Tier', 'Custom feature not in documentation', 'Timeline is unrealistic').",
+                        "severity": 1
                     }}
                 ],
                 "kickoff_agenda": "A markdown-formatted string for the client kickoff meeting agenda."
@@ -106,6 +107,9 @@ class WatsonxConnector:
             """
 
             generated_text = ""
+            max_retries = 5
+            backoff_factor = 1.5
+
             try:
                 access_token = await self._get_iam_token()
                 
@@ -128,19 +132,43 @@ class WatsonxConnector:
                     "input": prompt,
                     "parameters": {
                         "decoding_method": "greedy",
-                        "max_new_tokens": 1500, # Max tokens for the LLM response
+                        "max_new_tokens": 2048, # Max tokens for the LLM response — raised from 1500 to prevent truncated JSON
                         "min_new_tokens": 1,
                         "repetition_penalty": 1.1
                     }
                 }
+
+                response = None
+                for attempt in range(max_retries):
+                    try:
+                        logger.info(f"Sending prompt to watsonx API (Attempt {attempt + 1}/{max_retries})...")
+                        response = await asyncio.to_thread(self._session.post, generation_url, headers=headers, json=payload)
+                        response.raise_for_status() # Raise an exception for bad status codes
+                        # If successful, break the loop
+                        logger.info("Successfully received response from watsonx API.")
+                        break
+                    except requests.exceptions.RequestException as e:
+                        # Check for 429 status code for rate limiting
+                        if e.response is not None and e.response.status_code == 429:
+                            if attempt < max_retries - 1:
+                                wait_time = backoff_factor * (2 ** attempt)
+                                logger.warning(f"Watsonx API rate limit hit (429). Retrying in {wait_time:.2f} seconds...")
+                                await asyncio.sleep(wait_time)
+                            else:
+                                logger.error(f"Watsonx API rate limit hit. Max retries ({max_retries}) reached.")
+                                raise # Re-raise the final exception
+                        else:
+                            # For other HTTP errors (non-429), we re-raise immediately.
+                            raise
                 
-                logger.info("Sending prompt to watsonx API...")
-                response = await asyncio.to_thread(self._session.post, generation_url, headers=headers, json=payload)
-                response.raise_for_status() # Raise an exception for bad status codes
+                if response is None:
+                    # This case should ideally not be reached if the loop always raises or breaks. It's a safeguard.
+                    raise Exception("Failed to get a valid response from Watsonx API after all retries.")
                 
                 # Extract the generated text from the JSON response
                 result = response.json()
                 generated_text = result["results"][0]["generated_text"]
+                logger.debug(f"Raw LLM response received (length={len(generated_text)}):\n{generated_text}")
                 
                 # Clean the response to get only the JSON part.
                 # The model often returns explanatory text and multiple JSON blocks.
@@ -193,12 +221,7 @@ class WatsonxConnector:
                 logger.error(f"HTTP Error communicating with watsonx API: {e}")
                 if e.response is not None:
                     logger.error(f"Error details: {e.response.text}")
-                return {
-                    "deliverables": [],
-                    "timelines": [],
-                    "discrepancies": [{"item": "Processing Error", "reason": f"Failed to communicate with Watsonx API: {e}"}],
-                    "kickoff_agenda": "Could not be generated due to API communication error."
-                }
+                raise
             except (json.JSONDecodeError, IndexError) as e:
                 logger.error(f"Failed to parse JSON from Watsonx response: {e}", exc_info=True)
                 logger.error(f"Raw response from Watsonx: {generated_text}")

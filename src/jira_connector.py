@@ -2,7 +2,6 @@ import asyncio
 from jira import JIRA, JIRAError
 from . import config
 import logging
-from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
@@ -14,12 +13,13 @@ class JiraConnector:
     def __init__(self):
         logger.info("JiraConnector.__init__: Initializing...")
         self._jira_client = None
+        self._field_cache = {}  # Cache for custom field IDs
         logger.info("JiraConnector.__init__: Initialization complete.")
 
     async def _get_client(self):
         """Initializes and returns the JIRA client, if configured."""
         if self._jira_client:
-            return self_jira_client
+            return self._jira_client
 
         def _connect():
             if all([config.JIRA_SERVER, config.JIRA_USERNAME, config.JIRA_API_TOKEN]):
@@ -31,7 +31,7 @@ class JiraConnector:
                         max_retries=2,
                     )
                 except JIRAError as e:
-                    logger.error(f"Failed to connect to Jira: {e.status_code} - {e.text}")
+                    logger.error(f"Failed to connect to Jira: {e.status_code}, {e.text}")
                     return None
             return None
 
@@ -40,40 +40,79 @@ class JiraConnector:
             logger.warning("Jira not connected. Check credentials in .env file.")
         return self._jira_client
 
-    @lru_cache(maxsize=None)
-    def _get_custom_field_id(self, field_name: str) -> str | None:
+    async def _get_custom_field_id(self, field_name: str) -> str | None:
         """Finds the custom field ID for a given field name (e.g., 'Epic Link'). Caches the result."""
-        if not self._jira_client:
+        # Check cache first
+        if field_name in self._field_cache:
+            return self._field_cache[field_name]
+
+        jira = await self._get_client()
+        if not jira:
             return None
+
+        def _fetch_fields():
+            try:
+                return jira.fields()
+            except JIRAError as e:
+                logger.error(f"Error fetching Jira fields: {e.text}")
+                return None
+
+        all_fields = await asyncio.to_thread(_fetch_fields)
+        if not all_fields:
+            return None
+
+        for field in all_fields:
+            if field['name'].lower() == field_name.lower():
+                logger.info(f"Found custom field '{field_name}' with ID: {field['id']}")
+                # Store in cache
+                self._field_cache[field_name] = field['id']
+                return field['id']
+
+        logger.warning(f"Custom field '{field_name}' not found. Review the available fields below.")
         try:
-            all_fields = self._jira_client.fields()
-            for field in all_fields:
-                if field['name'].lower() == field_name.lower():
-                    logger.info(f"Found custom field '{field_name}' with ID: {field['id']}")
-                    return field['id']
-            logger.warning(f"Custom field '{field_name}' not found.")
-            return None
-        except JIRAError as e:
-            logger.error(f"Error fetching Jira fields: {e.text}")
-            return None
+            available_fields = [f"'{field['name']}' (ID: {field['id']})" for field in all_fields]
+            logger.warning(f"Available Jira custom fields: {', '.join(available_fields)}")
+        except Exception:
+            # Avoid crashing the logger if a field is malformed
+            logger.warning("Could not format the full list of available custom fields.")
+
+        return None
 
     async def create_project_if_not_exists(self, project_key: str, project_name: str) -> dict | None:
         """Creates a Jira project if it doesn't already exist."""
         jira = await self._get_client()
         if not jira: return None
 
-        async def _create_or_get():
+        def _create_or_get():
             try:
-                return jira.project(project_key)
+                project = jira.project(project_key)
+                logger.info(f"Project {project_key} already exists.")
+                return project
             except JIRAError as e:
                 if e.status_code == 404:
                     logger.info(f"Project {project_key} not found, creating it...")
-                    try:
-                        return jira.create_project(
-                            key=project_key,
-                            name=project_name,
-                            template_name="Task management",
+                    if not config.JIRA_LEAD_ACCOUNT_ID:
+                        logger.error(
+                            "JIRA_LEAD_ACCOUNT_ID is not set. "
+                            "Set it to the Jira user accountId (Cloud) or username (Server) "
+                            "that should own new projects."
                         )
+                        return None
+                    
+                    payload = {
+                        "key": project_key,
+                        "name": project_name,
+                        "leadAccountId": config.JIRA_LEAD_ACCOUNT_ID,
+                        "projectTypeKey": "software",
+                        "projectTemplateKey": "com.pyxis.greenhopper.jira:gh-simplified-scrum-classic"
+                    }
+                    
+                    url = jira._get_url("project")
+                    
+                    try:
+                        jira._session.post(url, json=payload)
+                        logger.info(f"Project {project_key} created successfully.")
+                        return jira.project(project_key)
                     except JIRAError as e_create:
                         logger.error(f"Failed to create Jira project {project_key}: {e_create.text}")
                         return None
@@ -83,12 +122,14 @@ class JiraConnector:
         
         return await asyncio.to_thread(_create_or_get)
 
-    async def create_issue(self, issue_dict: dict) -> dict | None:
-        """Creates a single new issue in Jira."""
+    async def create_issue(self, issue_dict: dict):
+        """Creates a single new issue in Jira. Returns a Jira Issue object or None."""
         jira = await self._get_client()
-        if not jira: return {"key": "DUMMY-1"} # Return mock issue if not connected
+        if not jira:
+            logger.warning("Jira client unavailable; skipping issue creation.")
+            return None
 
-        async def _create():
+        def _create():
             try:
                 return jira.create_issue(fields=issue_dict)
             except JIRAError as e:
@@ -102,36 +143,32 @@ class JiraConnector:
         if not jira: return None
 
         # 1. Ensure project exists
-        await self.create_project_if_not_exists(project_key, project_name)
-
-        # 2. Get custom field IDs for Epic
-        epic_name_field = await asyncio.to_thread(self._get_custom_field_id, 'Epic Name')
-        epic_link_field = await asyncio.to_thread(self._get_custom_field_id, 'Epic Link')
-        if not epic_name_field or not epic_link_field:
-            logger.error("Could not find 'Epic Name' or 'Epic Link' custom fields. Cannot create Epic.")
+        project = await self.create_project_if_not_exists(project_key, project_name)
+        if not project:
+            logger.error(f"Aborting epic creation: project {project_key} could not be created or retrieved.")
             return None
 
-        # 3. Create the Epic
+        # 2. Create the Epic
         epic_summary = f"Onboarding Epic: {opportunity_name}"
         epic_dict = {
             'project': {'key': project_key},
             'summary': epic_summary,
             'description': f"Parent Epic for all onboarding tasks related to the opportunity: {opportunity_name}.",
             'issuetype': {'name': 'Epic'},
-            epic_name_field: opportunity_name,
         }
         logger.info(f"Creating Epic: {epic_summary}")
         created_epic = await self.create_issue(epic_dict)
         if not created_epic:
             logger.error("Failed to create the parent Epic.")
             return None
-        
-        logger.info(f"Epic '{created_epic.key}' created successfully.")
 
-        # 4. Create Sub-tasks and link to the Epic
+        epic_key = created_epic.key
+        logger.info(f"Epic '{epic_key}' created successfully.")
+
+        # 3. Create Tasks and link to the Epic.
         if not deliverables:
             logger.info("No deliverables found to create as sub-tasks.")
-            return created_epic.key
+            return epic_key
 
         issue_tasks = []
         for deliverable in list(set(deliverables)):
@@ -140,14 +177,14 @@ class JiraConnector:
                 'summary': deliverable,
                 'description': f"Deliverable identified for {opportunity_name}.",
                 'issuetype': {'name': 'Task'},
-                epic_link_field: created_epic.key,
+                'parent': {'key': epic_key},
             }
             issue_tasks.append(self.create_issue(task_dict))
         
-        logger.info(f"Creating {len(issue_tasks)} sub-tasks for Epic {created_epic.key}...")
+        logger.info(f"Creating {len(issue_tasks)} sub-tasks for Epic {epic_key}...")
         results = await asyncio.gather(*issue_tasks)
         
-        successful_tasks = [res.key for res in results if res]
+        successful_tasks = [res.key for res in results if res is not None]
         logger.info(f"Successfully created {len(successful_tasks)} sub-tasks: {successful_tasks}")
         
-        return created_epic.key
+        return epic_key
