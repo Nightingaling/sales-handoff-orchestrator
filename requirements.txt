@@ -9,3 +9,5 @@ python-multipart
 openai
 requests
 aiohttp
+pdfplumber
+python-docx

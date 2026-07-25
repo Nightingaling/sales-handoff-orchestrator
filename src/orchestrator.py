@@ -257,25 +257,43 @@ class HandoffOrchestrator:
                 file_type = doc_info.get("FileType", "").lower()
                 version_id = doc_info["LatestPublishedVersionId"]
 
-                file_extension = f".{file_type}" if file_type in ['pdf', 'docx', 'txt'] else '.txt'
-                file_path = os.path.join(temp_dir, f"{version_id}_{title}{file_extension}")
+                base_name, current_ext = os.path.splitext(title)
+                current_ext = current_ext.lower().strip('.')
 
-                mock_content = f"Document: {title}\n"
-                if "contract" in title.lower():
-                    mock_content += "Deliverables: AI-Powered Insights, SSO Integration, and on-premise deployment. Timeline: Project start within one week."
-                elif "notes" in title.lower():
-                    mock_content += "No special notes."
+                logger.info(f"Processing document '{title}'. FileType from Salesforce: '{file_type}', Ext from title: '{current_ext}'")
                 
-                async with aiofiles.open(file_path, "w", encoding="utf-8") as f:
-                    await f.write(mock_content)
+                # Heuristic to guess file type based on title if other methods fail
+                guessed_ext = ''
+                title_lower = title.lower()
+                if 'note' in title_lower:
+                    guessed_ext = '.txt'
+                elif 'agreement' in title_lower or 'contract' in title_lower or 'sow' in title_lower:
+                    guessed_ext = '.pdf'
 
-                parse_tasks.append(self.document_parser.parse_document(file_path))
+                if current_ext in ['pdf', 'docx', 'txt']:
+                    file_path = os.path.join(temp_dir, f"{version_id}_{title}")
+                elif file_type in ['pdf', 'docx', 'txt']:
+                    file_path = os.path.join(temp_dir, f"{version_id}_{title}.{file_type}")
+                elif guessed_ext:
+                    file_path = os.path.join(temp_dir, f"{version_id}_{title}{guessed_ext}")
+                else:
+                    logger.warning(f"Unsupported or unknown file type for document '{title}'. Could not guess extension. Skipping.")
+                    continue
 
-            parsed_results = []
-            for task in parse_tasks:
-                parsed_results.append(await task)
+                # Get document content from Salesforce
+                doc_content = await self.salesforce_connector.get_document(version_id)
 
-            all_text = "\n\n".join(filter(None, parsed_results))
+                if doc_content:
+                    async with aiofiles.open(file_path, "wb") as f:
+                        await f.write(doc_content)
+                    
+                    parse_tasks.append(self.document_parser.parse_document(file_path))
+                else:
+                    logger.warning(f"Could not retrieve document content for {title} (Version ID: {version_id})")
+
+            if parse_tasks:
+                parsed_results = await asyncio.gather(*parse_tasks)
+                all_text = "\n\n".join(filter(None, parsed_results))
         
         shutil.rmtree(temp_dir)
         

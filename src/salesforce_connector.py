@@ -60,6 +60,7 @@ class SalesforceConnector:
                 "AccountId": "001xx000003DGb2AAG",
                 "Amount": 50000,
                 "StageName": "Closed Won",
+                "Owner": {"Name": "Demo User"},
                 # You would also fetch related documents/attachments here
                 "AttachedContentDocuments": {
                     "records": [
@@ -73,7 +74,7 @@ class SalesforceConnector:
             try:
                 # SOQL to get Opportunity and related ContentDocument links
                 soql_opp = f"""
-                SELECT Name, Account.Name, StageName,
+                SELECT Name, Account.Name, StageName, Amount, Owner.Name,
                     (SELECT ContentDocument.Id, ContentDocument.Title, ContentDocument.LatestPublishedVersionId
                      FROM AttachedContentDocuments)
                 FROM Opportunity
@@ -106,16 +107,11 @@ class SalesforceConnector:
             return None
 
         try:
-            # This is a simplified example of getting a document.
-            # You would use the ContentVersion object and the VersionData field.
-            # The API call would look something like this:
             def _get_doc():
-                # url = f"{sf.base_url}sobjects/ContentVersion/{content_version_id}/VersionData"
-                # response = sf.session.get(url, headers=sf.headers)
-                # return response.content
-                print(f"Fetching document with ContentVersionId: {content_version_id}")
-                # Returning mock data for now
-                return b"This is a mock document content."
+                url = f"{sf.base_url}sobjects/ContentVersion/{content_version_id}/VersionData"
+                response = sf.session.get(url, headers=sf.headers)
+                response.raise_for_status()
+                return response.content
             return await asyncio.to_thread(_get_doc)
         except Exception as e:
             print(f"Error fetching document from Salesforce: {e}")

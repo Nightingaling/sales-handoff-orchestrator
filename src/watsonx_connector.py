@@ -60,51 +60,73 @@ class WatsonxConnector:
         3. Drafts a kickoff agenda.
         """
         async with self._semaphore:
+            print("--- EXTRACTED DOCUMENT TEXT ---")
+            print(document_text)
+            print("-------------------------------")
             prompt = f"""
-            You are an AI assistant for a sales handoff process. Your task is to analyze sales documents, compare them to the official product documentation, and generate a set of assets for the post-sales team.
+You are an AI assistant for a sales handoff process. Your task is to analyze sales documents, compare them to the official product documentation, and generate a set of assets for the post-sales team.
 
-            Here is the official product documentation for what is possible:
-            ---
-            <product_documentation>
-            {product_documentation}
-            </product_documentation>
-            ---
+Here is the official product documentation for what is possible:
+---
+<product_documentation>
+{product_documentation}
+</product_documentation>
+---
 
-            Here is the combined text from all sales documents (contracts, transcripts, etc.):
-            ---
-            <sales_documents>
-            {document_text}
-            </sales_documents>
-            ---
+Here is the combined text from all sales documents (contracts, transcripts, etc.):
+---
+<sales_documents>
+{document_text}
+</sales_documents>
+---
 
-            Based on the provided documents, perform the following tasks:
+Based on the provided documents, perform the following tasks and provide the output as a single JSON object:
 
-            1.  **Extract Key Information**: Identify the specific deliverables and timelines promised to the client.
+1.  **Extract Key Information**: Identify the specific deliverables and timelines promised to the client.
             
-            2.  **Analyze Discrepancies**: Cross-reference the extracted deliverables against the product documentation. Identify any items that are not supported, require a higher tier, or are an unclear. Each discrepancy should have a 'reason'.
+2.  **Analyze Discrepancies**: Cross-reference the extracted deliverables against the product documentation. Identify any items that are not supported, require a higher tier, or are an unclear. Each discrepancy should have a 'reason'.
 
-            3.  **Draft Kickoff Agenda**: Create a client-facing kickoff agenda based on the confirmed deliverables and timelines.
+3.  **Draft Kickoff Agenda**: As an expert Sales-to-Customer-Success handoff assistant, draft a kickoff meeting agenda based ONLY on the provided CRM data and sales documents.
 
-            Please provide the output as a single JSON object with the following structure:
-            {{
-                "deliverables": [
-                    "List of strings representing each deliverable promised."
-                ],
-                "timelines": [
-                    "List of strings representing key dates or timeframes."
-                ],
-                "discrepancies": [
-                    {{
-                        "item": "The deliverable or promise that has an issue.",
-                        "reason": "A brief explanation of why it's a discrepancy (e.g., 'Feature not available in Standard Tier', 'Custom feature not in documentation', 'Timeline is unrealistic').",
-                        "severity": 1
-                    }}
-                ],
-                "kickoff_agenda": "A markdown-formatted string for the client kickoff meeting agenda."
-            }}
+    CRITICAL INSTRUCTIONS FOR KICKOFF AGENDA:
+    a. NO PLACEHOLDERS: Do not use generic filler like "To be discussed" or "TBD". You MUST extract the exact deliverables, quantities, and dates from the provided text.
+    b. NO HALLUCINATIONS: If a specific date or deliverable is not in the text, do not invent one.
+    c. SLACK FORMATTING ONLY: Do NOT use standard Markdown headers (like # or ##). Do NOT wrap your response in code blocks. 
+       - Use standard text.
+       - Use Slack's formatting for bolding headers: *bold text*
+       - Use standard dashes (-) or bullets (•) for lists.
 
-            Return only the JSON object.
-            """
+    Format the agenda EXACTLY like this structure:
+    *Client Kickoff Meeting Agenda*
+    *Objective:* [State the exact goal based on the documents]
+
+    *1. Review of Deliverables*
+    - [Specific deliverable 1 from document]
+    - [Specific deliverable 2 from document]
+
+    *2. Timeline & Key Dates*
+    - [Specific date 1 from document]
+    - [Specific date 2 from document]
+
+
+Return only the JSON object. Example of the full JSON structure:
+{{
+    "deliverables": [
+        "List of strings representing each deliverable promised."
+    ],
+    "timelines": [
+        "List of strings representing key dates or timeframes."
+    ],
+    "discrepancies": [
+        {{
+            "item": "The deliverable or promise that has an issue.",
+            "reason": "A brief explanation of why it's a discrepancy (e.g., 'Feature not available in Standard Tier', 'Custom feature not in documentation', 'Timeline is unrealistic').",
+            "severity": 1
+        }}
+    ],
+    "kickoff_agenda": "A string containing the Slack-formatted kickoff meeting agenda as described in the CRITICAL INSTRUCTIONS."
+}}
+"""
 
             generated_text = ""
             max_retries = 5

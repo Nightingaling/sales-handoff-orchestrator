@@ -217,7 +217,7 @@ class SlackConnector:
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"✉️ *Drafted Kickoff Agenda*\n```\n{kickoff_agenda}\n```"
+                    "text": f"✉️ *Drafted Kickoff Agenda*\n{kickoff_agenda}"
                 }
             },
             {"type": "divider"},
