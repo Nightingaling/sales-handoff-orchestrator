@@ -60,9 +60,7 @@ class WatsonxConnector:
         3. Drafts a kickoff agenda.
         """
         async with self._semaphore:
-            print("--- EXTRACTED DOCUMENT TEXT ---")
-            print(document_text)
-            print("-------------------------------")
+            
             prompt = f"""
 You are an AI assistant for a sales handoff process. Your task is to analyze sales documents, compare them to the official product documentation, and generate a set of assets for the post-sales team.
 
@@ -226,17 +224,17 @@ Return only the JSON object. Example of the full JSON structure:
                         # This 'else' belongs to the 'for' loop, executed if 'break' is not hit.
                         raise json.JSONDecodeError("Could not find a complete JSON object.", generated_text, 0)
                 
+                json_part = json_part.strip()
                 if not json_part:
-                    raise json.JSONDecodeError("No valid JSON found in response", generated_text, 0)
+                    raise json.JSONDecodeError("Extracted JSON part is empty after stripping", generated_text, 0)
 
                 # Now, try to parse the extracted JSON part, with a simple fix-up attempt.
                 try:
-                    # Strip whitespace which can cause parsing errors
-                    return json.loads(json_part.strip())
+                    return json.loads(json_part)
                 except json.JSONDecodeError as e:
                     logger.warning(f"Initial JSON parsing failed: {e}. Attempting to fix and re-parse.")
                     # Attempt to fix common errors like trailing commas before re-parsing.
-                    fixed_json = re.sub(r",\s*([\}\]])", r"\1", json_part.strip())
+                    fixed_json = re.sub(r",\s*([\}\]])", r"\1", json_part)
                     return json.loads(fixed_json)
 
             except requests.exceptions.RequestException as e:
