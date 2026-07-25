@@ -230,7 +230,13 @@ Return only the JSON object. Example of the full JSON structure:
                 
                 json_part = json_part.strip()
                 if not json_part:
-                    raise json.JSONDecodeError("Extracted JSON part is empty after stripping", generated_text, 0)
+                    logger.error("Extracted JSON part is empty after stripping. Raw response from Watsonx: %s", generated_text)
+                    return {
+                        "deliverables": [],
+                        "timelines": [],
+                        "discrepancies": [{"item": "Processing Error", "reason": "Failed to parse LLM response (empty JSON part)."}],
+                        "kickoff_agenda": "Could not be generated due to a processing error."
+                    }
 
                 # Now, try to parse the extracted JSON part, with a simple fix-up attempt.
                 parsed_json = None
@@ -239,8 +245,16 @@ Return only the JSON object. Example of the full JSON structure:
                 except json.JSONDecodeError as e:
                     logger.warning(f"Initial JSON parsing failed: {e}. Attempting to fix and re-parse.")
                     # Attempt to fix common errors like trailing commas before re-parsing.
-                    fixed_json = re.sub(r",\s*([\}\]])", r"\1", json_part)
-                    # The outer `try` will catch this if it fails
+                    fixed_json = re.sub(r",\s*([\}\]])", r"\1", json_part).strip()
+                    if not fixed_json:
+                        logger.error(
+                            "JSON fixing attempt resulted in an empty string. Cannot parse. Original part was: %s", 
+                            json_part
+                        )
+                        # Re-raise the original error, as our fix failed.
+                        raise e
+                    
+                    # The outer `try` will catch this if it fails again
                     parsed_json = json.loads(fixed_json)
                 
                 return parsed_json

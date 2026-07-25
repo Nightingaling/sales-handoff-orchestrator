@@ -191,9 +191,14 @@ class HandoffOrchestrator:
                 reason=reason
             )
 
-            # 5. Clean up state file to prevent provisioning
-            os.remove(state_file_path)
-            logger.info(f"Cleaned up state file after rejection: {state_file_path}")
+            # 5. Update Opportunity Stage to "Needs Review" and Lock Commission
+            await self.salesforce_connector.update_opportunity_stage_for_review(opportunity_id)
+
+            # 6. Mark state as rejected
+            state['status'] = 'rejected'
+            async with aiofiles.open(state_file_path, "w") as f:
+                await f.write(json.dumps(state, indent=4))
+            logger.info(f"Updated state file to 'rejected': {state_file_path}")
 
         except FileNotFoundError:
             logger.warning(f"State file for opportunity_id: {opportunity_id} not found during rejection. It might have already been processed or deleted.")

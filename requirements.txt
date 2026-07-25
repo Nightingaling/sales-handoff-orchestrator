@@ -11,3 +11,5 @@ requests
 aiohttp
 pdfplumber
 python-docx
+lxml
+xmltodict
