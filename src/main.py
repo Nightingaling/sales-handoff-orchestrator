@@ -1,6 +1,7 @@
 import json
 import logging
 import urllib.parse
+import requests
 
 from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
 from pydantic import BaseModel
@@ -59,6 +60,7 @@ async def slack_interactive_endpoint(request: Request, background_tasks: Backgro
             opportunity_id = action_value["opportunity_id"]
             user_name = payload["user"]["name"]
             user_id = payload["user"]["id"]
+            response_url = payload["response_url"] # Extract response_url
             
             if action["action_id"] == "approve_provision":
                 logger.info(f"Received 'approve_provision' action for opportunity ID: {opportunity_id} from user {user_name}")
@@ -73,20 +75,34 @@ async def slack_interactive_endpoint(request: Request, background_tasks: Backgro
             elif action["action_id"] == "reject_handoff":
                 logger.info(f"Received 'reject_handoff' action for opportunity ID: {opportunity_id} from user {user_name}")
 
-                # Run the rejection logic in the background
+                # Update the Slack message immediately to remove buttons
+                updated_blocks = [
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": f"🛑 *Handoff Rejected by {user_name}.* The AE has been notified in Salesforce."
+                        }
+                    }
+                ]
+                
+                # This replaces the original message so it cannot be clicked again
+                requests.post(response_url, json={
+                    "replace_original": "true", 
+                    "blocks": updated_blocks
+                })
+
+                # Trigger the Chatter post in the background
                 background_tasks.add_task(app.state.orchestrator.handle_rejection, opportunity_id, user_name)
 
-                # Send a private confirmation to the user who rejected
-                background_tasks.add_task(app.state.orchestrator.slack_connector.send_rejection_confirmation, opportunity_id, user_id)
-
-                # Update the original message to show it was rejected
-                response_text = f"❌ Handoff for {opportunity_id} rejected by {user_name}. The sales team has been notified."
-                return {"text": response_text, "response_type": "in_channel", "replace_original": True}
+                # Return a 200 OK to Slack immediately
+                return {"status": "ok"}
 
     except Exception as e:
         logger.error(f"Error processing Slack interactive payload: {e}", exc_info=True)
         # It's important to still return a 200 to Slack to avoid retry storms
-    
+        return {"status": "error", "message": str(e)} # Return an error status to Slack, but still 200 HTTP status
+
     return {"status": "ok"}
 
 

@@ -149,6 +149,7 @@ class HandoffOrchestrator:
     async def handle_rejection(self, opportunity_id: str, rejected_by_name: str):
         """
         Handles the rejection of a handoff, notifies the sales rep, and cleans up.
+        It now reads discrepancies from the state file to create a dynamic rejection reason.
         """
         logger.info(f"handle_rejection started for opportunity_id: {opportunity_id}")
         state_file_path = os.path.join(TEMP_STATE_DIR, f"{opportunity_id}.json")
@@ -162,14 +163,35 @@ class HandoffOrchestrator:
             handoff_assets = state["handoff_assets"]
             discrepancies = handoff_assets.get("discrepancies", [])
 
-            # 2. Notify Sales Team of Rejection
+            # 2. Generate dynamic rejection reason
+            if discrepancies:
+                discrepancy_reasons = [f"- {d.get('item')}: {d.get('reason')}" for d in discrepancies]
+                reason = "AI-identified discrepancies:\n" + "\n".join(discrepancy_reasons)
+            else:
+                reason = "Manual rejection by the Customer Success reviewer (AI found no missing deliverables or timeline issues)"
+
+            # Extract AE name
+            ae_name = (
+                (opportunity.get("Owner") or {}).get("Name")
+                or opportunity.get("OwnerName")
+                or "N/A"
+            )
+
+            # 3. Notify Sales Team of Rejection (via Slack)
             await self.slack_connector.send_rejection_notification(
                 opportunity_name=opportunity['Name'],
                 discrepancies=discrepancies,
                 rejected_by=rejected_by_name
             )
 
-            # 3. Clean up state file to prevent provisioning
+            # 4. Post to Salesforce Chatter
+            await self.salesforce_connector.post_chatter_rejection(
+                opportunity_id=opportunity_id,
+                ae_name=ae_name,
+                reason=reason
+            )
+
+            # 5. Clean up state file to prevent provisioning
             os.remove(state_file_path)
             logger.info(f"Cleaned up state file after rejection: {state_file_path}")
 

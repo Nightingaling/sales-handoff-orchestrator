@@ -116,3 +116,29 @@ class SalesforceConnector:
         except Exception as e:
             print(f"Error fetching document from Salesforce: {e}")
             return None
+
+    async def post_chatter_rejection(self, opportunity_id: str, ae_name: str, reason: str):
+        """
+        Posts a rejection message to Salesforce Chatter for a given opportunity.
+        """
+        sf = await self._get_client()
+        if not sf:
+            logger.warning("Salesforce connection not configured. Cannot post to Chatter.")
+            return
+
+        chatter_message = f"@[{ae_name}] Sales handoff rejected by CS. Reason: {reason}. Please update the Salesforce records and resubmit."
+        
+        def _post_chatter():
+            try:
+                sf.FeedItem.create({
+                    'ParentId': opportunity_id, # This is crucial. It attaches the post to the Opportunity.
+                    'Body': chatter_message,
+                    'IsRichText': False
+                })
+                logger.info(f"Successfully posted to Chatter for Opp: {opportunity_id}")
+            except Exception as e:
+                logger.error(f"CRITICAL ERROR posting to Salesforce Chatter: {e}", exc_info=True)
+                raise # Re-raise to ensure calling function is aware of the failure
+        
+        await asyncio.to_thread(_post_chatter)
+

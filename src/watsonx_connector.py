@@ -189,6 +189,10 @@ Return only the JSON object. Example of the full JSON structure:
                 result = response.json()
                 generated_text = result["results"][0]["generated_text"]
                 logger.debug(f"Raw LLM response received (length={len(generated_text)}):\n{generated_text}")
+
+                if not generated_text or not generated_text.strip():
+                    logger.error("Watsonx API returned an empty or whitespace-only response.")
+                    raise json.JSONDecodeError("Watsonx API returned an empty response.", generated_text, 0)
                 
                 # Clean the response to get only the JSON part.
                 # The model often returns explanatory text and multiple JSON blocks.
@@ -229,13 +233,17 @@ Return only the JSON object. Example of the full JSON structure:
                     raise json.JSONDecodeError("Extracted JSON part is empty after stripping", generated_text, 0)
 
                 # Now, try to parse the extracted JSON part, with a simple fix-up attempt.
+                parsed_json = None
                 try:
-                    return json.loads(json_part)
+                    parsed_json = json.loads(json_part)
                 except json.JSONDecodeError as e:
                     logger.warning(f"Initial JSON parsing failed: {e}. Attempting to fix and re-parse.")
                     # Attempt to fix common errors like trailing commas before re-parsing.
                     fixed_json = re.sub(r",\s*([\}\]])", r"\1", json_part)
-                    return json.loads(fixed_json)
+                    # The outer `try` will catch this if it fails
+                    parsed_json = json.loads(fixed_json)
+                
+                return parsed_json
 
             except requests.exceptions.RequestException as e:
                 logger.error(f"HTTP Error communicating with watsonx API: {e}")
