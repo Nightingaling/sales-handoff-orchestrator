@@ -21,6 +21,10 @@ class SalesforceConnector:
         def _connect():
             if all([config.SALESFORCE_USERNAME, config.SALESFORCE_PASSWORD, config.SALESFORCE_SECURITY_TOKEN, config.SALESFORCE_INSTANCE_URL]):
                 try:
+                    # WARNING: Disabling SSL verification is a security risk.
+                    # This is done here to accommodate development environments that
+                    # may use self-signed certificates.
+                    # Do NOT use verify=False in a production environment.
                     return Salesforce(
                         username=config.SALESFORCE_USERNAME,
                         password=config.SALESFORCE_PASSWORD,
@@ -78,7 +82,7 @@ class SalesforceConnector:
                     (SELECT ContentDocument.Id, ContentDocument.Title, ContentDocument.LatestPublishedVersionId
                      FROM AttachedContentDocuments)
                 FROM Opportunity
-                WHERE Id = '{opportunity_id}'
+                WHERE Id = '{opportunity_id}' AND StageName = 'Closed Won'
                 """
                 opportunity = sf.query(soql_opp)
 
@@ -142,3 +146,29 @@ class SalesforceConnector:
         
         await asyncio.to_thread(_post_chatter)
 
+    async def update_opportunity_stage_for_review(self, opportunity_id: str):
+        """
+        Updates the opportunity stage to 'Needs Review' and locks commission.
+        """
+        sf = await self._get_client()
+        if not sf:
+            logger.warning("Salesforce connection not configured. Cannot update opportunity.")
+            return
+
+        def _update_stage():
+            try:
+                # These field names are assumptions.
+                # 'Needs Review' is a standard StageName.
+                # 'Commission_Lock__c' is a custom field that needs to be created in Salesforce.
+                sf.Opportunity.update(opportunity_id, {
+                    'StageName': 'Needs Review',
+                    # 'Commission_Lock__c' is a custom field that needs to be created in Salesforce.
+                    # Ensure this field exists in your Salesforce instance with this exact API Name.
+                    'Commission_Lock__c': True 
+                })
+                logger.info(f"Successfully updated Opportunity {opportunity_id} to 'Needs Review' and set 'Commission_Lock__c' to True.")
+            except Exception as e:
+                logger.error(f"CRITICAL ERROR updating opportunity stage for {opportunity_id}: {e}", exc_info=True)
+                raise # Re-raise to ensure calling function is aware of the failure
+        
+        await asyncio.to_thread(_update_stage)

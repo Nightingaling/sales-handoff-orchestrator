@@ -1,10 +1,12 @@
 import json
 import logging
-import urllib.parse
+
 import requests
+import xmltodict
 
 from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
-from pydantic import BaseModel
+from fastapi.responses import Response
+
 
 from .orchestrator import HandoffOrchestrator
 
@@ -22,6 +24,54 @@ async def startup_event():
     logger.info("main.py: startup_event called")
     app.state.orchestrator = HandoffOrchestrator()
     logger.info("main.py: HandoffOrchestrator instantiated")
+
+@app.post("/api/salesforce/webhook", tags=["Salesforce"])
+async def salesforce_webhook(request: Request, background_tasks: BackgroundTasks):
+    """
+    Handles Salesforce Outbound Message webhook for opportunity updates.
+    """
+    try:
+        content_type = request.headers.get("Content-Type")
+        if "text/xml" not in content_type:
+            raise HTTPException(status_code=400, detail=f"Invalid content type: {content_type}. Must be 'text/xml'.")
+
+        body = await request.body()
+        data = xmltodict.parse(body)
+
+        # Navigate through the SOAP envelope to get to the Opportunity details
+        notification = data.get("soapenv:Envelope", {}).get("soapenv:Body", {}).get("notifications", {})
+        sobject = notification.get("Notification", {}).get("sObject", {})
+        
+        # The namespace 'sf:' is defined in the WSDL, xmltodict will include it
+        opportunity_id = sobject.get("sf:Id")
+
+        if not opportunity_id:
+            logger.error(f"Could not extract Opportunity ID from Salesforce webhook payload: {data}")
+            raise HTTPException(status_code=400, detail="Could not extract Opportunity ID from payload.")
+
+        logger.info(f"Received Salesforce webhook for Opportunity ID: {opportunity_id}")
+        
+        # Process the opportunity in the background
+        background_tasks.add_task(app.state.orchestrator.process_opportunity, opportunity_id)
+
+        # Salesforce requires a specific SOAP response to acknowledge receipt
+        ack_response = """<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<soapenv:Body>
+<notificationsResponse xmlns="http://soap.sforce.com/2005/09/outbound">
+<Ack>true</Ack>
+</notificationsResponse>
+</soapenv:Body>
+</soapenv:Envelope>
+"""
+        return Response(content=ack_response, media_type="text/xml")
+
+    except Exception as e:
+        logger.error(f"Error processing Salesforce webhook: {e}", exc_info=True)
+        # Even on error, we need to try and send an ack=false to Salesforce if possible
+        # For simplicity, we'll return a generic error here, but in production you might
+        # want to craft a NACK response.
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/handoff/{opportunity_id}", tags=["Handoff"])
 async def perform_handoff(opportunity_id: str):

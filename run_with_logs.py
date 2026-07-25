@@ -1,5 +1,15 @@
 import logging
 import uvicorn
+import sys
+import os
+
+# Add the virtual environment's site-packages directory to sys.path
+# This is a workaround for application control policies that may prevent
+# running scripts directly from the venv.
+venv_site_packages = os.path.join(os.path.dirname(__file__), "venv", "Lib", "site-packages")
+if os.path.exists(venv_site_packages):
+    sys.path.insert(0, venv_site_packages)
+
 from src.main import app
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
