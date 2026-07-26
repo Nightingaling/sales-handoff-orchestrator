@@ -147,7 +147,19 @@ To allow the application to authenticate with your Salesforce environment.
 > ⚠️ **DEPRECATION WARNING: SUMMER '27**
 > Salesforce is retiring the SOAP API `login()` method in the Summer 2027 release. This application currently requires it for basic username/password authentication. 
 > 
-> *Note: If this checkbox is greyed out, or you receive an API login error, you may need to go to **Setup > Release Updates** and ensure the test run for "Platform SOAP API login() Retirement" is **Di[...]
+> *Note: If this checkbox is greyed out, or you receive an API login error, you may need to go to **Setup > Release Updates** and ensure the test run for "Platform SOAP API login() Retirement" is **Disabled**.*
+
+### Step 8: Whitelist Your IP Address
+Bypass the security token requirement
+
+1. In Salesforce, go to **Setup** (click the gear icon in top-right corner).
+2. Search for `Network Access` in the Quick Find box.
+3. Click **New**. Enter your public IP address in both the **Start IP Address** and **End IP Address** fields, then click **Save**.
+
+> Tip: How to find your public IP address
+> 1. Launch your command prompt.
+> 2. Type `curl icanhazip.com`.
+> 3. Copy the output from the console.
 
 ### Salesforce Environment Variables
 
@@ -217,34 +229,23 @@ SLACK_TECH_REVIEW_CHANNEL_ID=C9876543210FEDCBA
 ## IBM Watsonx Setup
 
 ### Step 1: Access IBM Cloud
+Go to [dataplatform.cloud.ibm.com](https://dataplatform.cloud.ibm.com/registration/stepone?context=wx&preselect_region=true) to create an account or log in.
 
-1. Go to [cloud.ibm.com](https://cloud.ibm.com).
-2. Log in or create an account.
-3. Make sure you have an active subscription.
+### Step 2: Create API Key & Get Project ID
 
-### Step 2: Create or Verify watsonx.ai Instance
+1. Locate the **Developer access** panel.
+2. Click the dropdown menu labeled **Project or deployment space**.
+3. Select the sandbox project that is created automatically for you.
+4. Copy the **Project ID** that is automatically retrieved for you.
+5. Verify your endpoint in the watsonx.ai URL field is `https://us-south.ml.cloud.ibm.com`.
+6. Click **Create API key**.
+7. Enter your IBM Cloud API key **Name** field as `sales-handoff-orchestrator`.
+8. **Choose what to do if this key is leaked:** **Disable the leaked key**.
+9. Click **Create**.
+10. Now, the API key has been successfully created! Copy the API key or click download to save it. You won’t be able to see this API key again, so you can’t retrieve it later.
 
-1. Go to **Catalog** and search for **watsonx.ai**.
-2. Click **Create** to set up a new instance (or use existing).
-3. Note the **Service Instance Name** and **Region** (e.g., `us-south`).
-
-### Step 3: Create API Key
-
-1. In your IBM Cloud dashboard, go to **Manage** → **Access (IAM)**.
-2. Click **Users** → select your user.
-3. In the **API keys** section, click **Create Classic infrastructure API key** or **Create IBM Cloud API key**.
-4. Copy the **API Key** and save it as `WATSONX_API_KEY`.
-
-### Step 4: Get Project ID
-
-1. Go to the watsonx.ai console.
-2. Create a new project or select an existing one.
-3. Copy the **Project ID** from the project settings.
-4. Save it as `WATSONX_PROJECT_ID`.
-
-### Step 5: Verify watsonx Model Availability
-
-The system uses IBM's foundation models via watsonx.ai. Verify that your region supports the model being used in `src/watsonx_connector.py` (currently configured for `meta-llama/llama-2-70b-chat`).
+### Step 3: Verify watsonx Model Availability
+The system uses IBM's foundation models via watsonx.ai. Verify that your region supports the model being used in `src/watsonx_connector.py` (currently configured for `meta-llama/llama-3-3-70b-instruct`).
 
 ### Watsonx Environment Variables
 
