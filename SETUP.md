@@ -65,6 +65,22 @@ This will provide a public URL like `https://your-subdomain.ngrok.io` that you'l
 
 ## Salesforce Setup
 
+Important: Required Opportunity Attachments
+
+- For the AI handoff orchestrator to work correctly, each Opportunity MUST have the relevant supporting documents attached so the system can extract distinct data points. At minimum, attach any of the following (when applicable):
+  - Signed contracts
+  - Statements of Work (SOWs)
+  - Security and Compliance Reviews
+  - Pricing Approvals
+  - Transcripts (e.g., customer call transcripts)
+
+- File format requirements: All attached documents must be in either PDF (.pdf) or plain text (.txt) format. The system will only process PDF or .txt attachments; other formats (e.g., .docx, .pptx, images) are not supported and may cause missing data in the AI analysis.
+
+- Where to attach: Attach these files directly to the Opportunity record in Salesforce (use the Files/Notes & Attachments related list depending on your org configuration).
+
+- Helpful tip: If you only have Office documents, export them to PDF before attaching. For audio/video transcripts, provide the transcript as a .txt file.
+
+
 ### Step 1: Get Salesforce Username (For Salesforce Environment Variables)
 
 1. Log in to your Salesforce Developer organization.
@@ -129,7 +145,7 @@ To allow the application to authenticate with your Salesforce environment.
 > ⚠️ **DEPRECATION WARNING: SUMMER '27**
 > Salesforce is retiring the SOAP API `login()` method in the Summer 2027 release. This application currently requires it for basic username/password authentication. 
 > 
-> *Note: If this checkbox is greyed out, or you receive an API login error, you may need to go to **Setup > Release Updates** and ensure the test run for "Platform SOAP API login() Retirement" is **Disabled**.*
+> *Note: If this checkbox is greyed out, or you receive an API login error, you may need to go to **Setup > Release Updates** and ensure the test run for "Platform SOAP API login() Retirement" is **Di[...]
 
 ### Salesforce Environment Variables
 
