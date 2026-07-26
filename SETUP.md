@@ -7,12 +7,13 @@ This guide provides step-by-step instructions to configure all required integrat
 1. [Prerequisites](#prerequisites)
 2. [Installation](#installation)
 3. [Salesforce Setup](#salesforce-setup)
-4. [Slack Setup](#slack-setup)
-5. [IBM Watsonx Setup](#ibm-watsonx-setup)
-6. [Jira Setup](#jira-setup)
-7. [Environment Configuration](#environment-configuration)
-8. [Running the Application](#running-the-application)
-9. [Testing the Integration](#testing-the-integration)
+4. [Salesforce Configuration](#salesforce-configuration)
+5. [Slack Setup](#slack-setup)
+6. [IBM Watsonx Setup](#ibm-watsonx-setup)
+7. [Jira Setup](#jira-setup)
+8. [Environment Configuration](#environment-configuration)
+9. [Running the Application](#running-the-application)
+10. [Testing the Integration](#testing-the-integration)
 
 ---
 
@@ -80,6 +81,7 @@ Important: Required Opportunity Attachments
 
 - Helpful tip: If you only have Office documents, export them to PDF before attaching. For audio/video transcripts, provide the transcript as a .txt file.
 
+## Salesforce Configuration
 
 ### Step 1: Get Salesforce Username (For Salesforce Environment Variables)
 
