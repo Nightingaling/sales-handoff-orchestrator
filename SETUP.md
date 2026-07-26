@@ -176,9 +176,13 @@ SALESFORCE_INSTANCE_URL=https://test.salesforce.com
 
 ### Step 1: Create a Slack App
 
-1. Go to [api.slack.com/apps](https://api.slack.com/apps).
-2. Click **Create New App** → **From scratch**.
-3. Name your app (e.g., "Sales Handoff Orchestrator") and select your workspace.
+1. Open the [Slack website](https://slack.com/) and click Get started, then choose to Create a new Slack Workspace.
+2. Enter your email address and click Continue, or continue with Apple or Google.
+3. Follow the prompts to name your workspace and invite team members (skip if there is no team members to invite).
+4. Navigate to [Slack API Dashboard](https://api.slack.com/apps) and sign in.
+5. Click **Create New App** and select the **From scratch option**.
+6. Enter your **App Name** (e.g., "Sales Handoff Orchestrator") and select the wrokspace you created in the previous step to serve as your development environment.
+7. Click **Create App**.
 
 ### Step 2: Enable Socket Mode (Optional)
 
@@ -188,17 +192,14 @@ For production deployments without ngrok:
 
 ### Step 3: Configure OAuth Scopes
 
-1. Go to **OAuth & Permissions** in the left sidebar.
-2. Under **Bot Token Scopes**, add the following scopes:
-   - `chat:write` — Send messages
-   - `chat:write.public` — Send messages to public channels
-   - `users:read` — Read user information
-   - `channels:read` — Read channel information
+1. Navigate to [Slack API Dashboard](https://api.slack.com/apps) and select your app.
+2. Go to **OAuth & Permissions** under **Features** in the left sidebar.
+3. Scroll down to the Scopes section. Under **Bot Token Scopes**, click **Add an OAuth Scope**.Add the following scope: `chat:write` — To allow the bot to send messages (Ignore if `chat:write` scope has been added)
 
 ### Step 4: Generate Bot Token
 
-1. Under **OAuth Tokens for Your Team**, copy the **Bot User OAuth Token** (starts with `xoxb-`).
-2. Save this as `SLACK_BOT_TOKEN` in your `.env`.
+1. Scroll back to the top of the page. Click **Install to Workspace**. Review the permissions and click **Allow**.
+2. Copy the **Bot User OAuth Token** (starts with `xoxb-`). Save this as `SLACK_BOT_TOKEN` in your `.env`.
 
 ### Step 5: Enable Interactivity
 
