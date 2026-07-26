@@ -65,25 +65,26 @@ This will provide a public URL like `https://your-subdomain.ngrok.io` that you'l
 
 ## Salesforce Setup
 
-### Step 1: Generate Salesforce Credentials
+### Step 1: Get Salesforce Username
 
-1. Log in to your Salesforce organization.
-2. Navigate to **Setup** → **User Management** → **Users**.
-3. Click on your user or create a dedicated integration user.
-4. Click **Edit** and note your **Username**.
+1. Log in to your Salesforce Developer organization.
+2. In Salesforce, go to your **User Profile** (click your avatar in top-right corner).
+3. Click **Settings**
+4. Your **Username** should look like: email.************@agentforce.com
 
 ### Step 2: Reset Security Token
 
 1. In Salesforce, go to your **User Profile** (click your avatar in top-right corner).
-2. Select **Settings**.
+2. Click **Settings**.
 3. In the left sidebar, click **Reset My Security Token**.
 4. You'll receive an email with your **Security Token**.
 
 ### Step 3: Get Instance URL
 
-- **Production**: `https://login.salesforce.com`
-- **Sandbox**: `https://test.salesforce.com`
-- Or find it in Setup → Instance → Instance URL
+1. In Salesforce, go to **Setup** (click the gear icon in top-right corner).
+2. In the Quick Find box, type **Company Information**
+3. The **Instance** field is located under **Organization Edition**
+4. Your **Instance URL** will then be https://`<Instance>`.salesforce.com
 
 ### Step 4: Configure Salesforce Outbound Messaging
 
