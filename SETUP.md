@@ -21,7 +21,7 @@ This guide provides step-by-step instructions to configure all required integrat
 Before starting, ensure you have:
 
 - Python 3.8 or higher installed
-- Access to a Salesforce organization (Production or Sandbox)
+- Access to a Salesforce Developer organization
 - A Slack workspace where you have admin permissions
 - An IBM Cloud account with watsonx.ai enabled
 - A Jira Cloud or Server instance with admin access
@@ -101,24 +101,25 @@ Create a custom field `Commission_Lock__c` on the Opportunity object:
 3. Set **Field Label** to `Commission Lock` and **Field Name** will be `Commission_Lock` (auto-generated).
 4. (Optional) Write in **Description**: `Indicates if commission payout is locked due to discrepancy`.
 5. Nothing to amend for **Establish field-level security** and **Add to page layouts**. Remember to **Save**.
+6. Ensure the **API Name** is `Commission_Lock__c`.
 
 ### Step 6: Configure System Permissions
 
 1. In Salesforce, go to **Setup** (click the gear icon in top-right corner).
-2. In the Quick Find box, type **Permission Sets**
-3. Click **New**
+2. In the Quick Find box, type `Permission Sets`.
+3. Click **New**.
 4. Set **Label** to `API Login Access` and **API Name** will be `API_Login_Access` (auto-generated).
 5. **Session Activation Required** remains as deactivated.
-6. Set **License** as **--None--**, then **Save**
-7. Go to **Manage Assignments** → **Add Assignment**
-8. Select your profile (ignore other profile)
-9. Click **Next**, then click **Assign**, then click **Done**
-10. In the left sidebar, click **Permission Sets**
-11. Click **API Login Access**
-12. Scroll all the way down, and click **System Permissions**
-13. Press **Edit**
-14. In **System Permissions**, find this setting: **Use Any API Auth**
-15. Scroll all the way up, and click **Save**
+6. Set **License** as **--None--**, then **Save**.
+7. Go to **Manage Assignments** → **Add Assignment**.
+8. Select your profile (ignore other profile).
+9. Click **Next**, then click **Assign**, then click **Done**.
+10. In the left sidebar, click **Permission Sets**.
+11. Click **API Login Access**.
+12. Scroll all the way down, and click **System Permissions**.
+13. Click **Edit**.
+14. In **System Permissions**, find this setting: **Use Any API Auth**.
+15. Scroll all the way up, and click **Save**.
 
 ### Salesforce Environment Variables
 
