@@ -87,15 +87,14 @@ This will provide a public URL like `https://your-subdomain.ngrok.io` that you'l
 4. Your **Instance URL** will then be https://`your-instance`.salesforce.com
 
 ### Step 4: Configure Salesforce Outbound Messaging
-
 Follow the detailed steps in [SALESFORCE_WEBHOOK_SETUP.md](./SALESFORCE_WEBHOOK_SETUP.md) to:
 - Create an **Outbound Message** for Opportunity objects
 - Create a **Record-Triggered Flow** that triggers when Stage = "Closed Won"
 - Set the webhook endpoint to: `https://your-app-domain.com/api/salesforce/webhook` or `https://your-ngrok-subdomain.ngrok.io/api/salesforce/webhook`
 
 ### Step 5: Create Custom Fields
-
 Create a custom field `Commission_Lock__c` on the Opportunity object:
+
 1. Go to **Setup** → **Object Manager** → **Opportunity** → **Fields & Relationships**.
 2. Click **New** and select **Checkbox**.
 3. Set **Field Label** to `Commission Lock` and **Field Name** will be `Commission_Lock` (auto-generated).
@@ -112,14 +111,25 @@ Create a custom field `Commission_Lock__c` on the Opportunity object:
 5. **Session Activation Required** remains as deactivated.
 6. Set **License** as **--None--**, then **Save**.
 7. Go to **Manage Assignments** → **Add Assignment**.
-8. Select your profile (ignore other profile).
+8. Check the box next to your profile (ignore other profile).
 9. Click **Next**, then click **Assign**, then click **Done**.
 10. In the left sidebar, click **Permission Sets**.
 11. Click **API Login Access**.
 12. Scroll all the way down, and click **System Permissions**.
 13. Click **Edit**.
-14. In **System Permissions**, find this setting: **Use Any API Auth**.
-15. Scroll all the way up, and click **Save**.
+14. In **System Permissions**, find this setting: **Use Any API Auth**. Check the box next to it and click **Save**.
+
+### Step 7: Enable Salesforce API Access
+To allow the application to authenticate with your Salesforce environment.
+
+1. In Salesforce, go to **Setup** (click the gear icon in top-right corner).
+2. Search for `User Interface` in the Quick Find box.
+3. Check the box for **Enable SOAP API login()** and **Enable SOAP API login() to users with the Use Any API Auth user permission** and save.
+
+> ⚠️ **DEPRECATION WARNING: SUMMER '27**
+> Salesforce is retiring the SOAP API `login()` method in the Summer 2027 release. This application currently requires it for basic username/password authentication. 
+> 
+> *Note: If this checkbox is greyed out, or you receive an API login error, you may need to go to **Setup > Release Updates** and ensure the test run for "Platform SOAP API login() Retirement" is **Disabled**.*
 
 ### Salesforce Environment Variables
 
