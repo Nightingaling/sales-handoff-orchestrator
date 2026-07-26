@@ -65,26 +65,26 @@ This will provide a public URL like `https://your-subdomain.ngrok.io` that you'l
 
 ## Salesforce Setup
 
-### Step 1: Get Salesforce Username
+### Step 1: Get Salesforce Username (For Salesforce Environment Variables)
 
 1. Log in to your Salesforce Developer organization.
 2. In Salesforce, go to your **User Profile** (click your avatar in top-right corner).
 3. Click **Settings**
-4. Your **Username** should look like: email.************@agentforce.com
+4. Your **Username** should look like: `email.************@agentforce.com`
 
-### Step 2: Reset Security Token
+### Step 2: Reset Security Token (For Salesforce Environment Variables)
 
 1. In Salesforce, go to your **User Profile** (click your avatar in top-right corner).
 2. Click **Settings**.
 3. In the left sidebar, click **Reset My Security Token**.
 4. You'll receive an email with your **Security Token**.
 
-### Step 3: Get Instance URL
+### Step 3: Get Instance URL (For Salesforce Environment Variables)
 
 1. In Salesforce, go to **Setup** (click the gear icon in top-right corner).
-2. In the Quick Find box, type **Company Information**
+2. In the Quick Find box, type `Company Information`
 3. The **Instance** field is located under **Organization Edition**
-4. Your **Instance URL** will then be https://`<Instance>`.salesforce.com
+4. Your **Instance URL** will then be https://`your-instance`.salesforce.com
 
 ### Step 4: Configure Salesforce Outbound Messaging
 
@@ -93,13 +93,32 @@ Follow the detailed steps in [SALESFORCE_WEBHOOK_SETUP.md](./SALESFORCE_WEBHOOK_
 - Create a **Record-Triggered Flow** that triggers when Stage = "Closed Won"
 - Set the webhook endpoint to: `https://your-app-domain.com/api/salesforce/webhook` or `https://your-ngrok-subdomain.ngrok.io/api/salesforce/webhook`
 
-### Step 5: Create Custom Fields (Optional but Recommended)
+### Step 5: Create Custom Fields
 
 Create a custom field `Commission_Lock__c` on the Opportunity object:
 1. Go to **Setup** → **Object Manager** → **Opportunity** → **Fields & Relationships**.
 2. Click **New** and select **Checkbox**.
-3. Set **Field Label** to `Commission Lock` and **Field Name** to `Commission_Lock__c`.
-4. This allows the system to lock commissions when a deal handoff is rejected.
+3. Set **Field Label** to `Commission Lock` and **Field Name** will be `Commission_Lock` (auto-generated).
+4. (Optional) Write in **Description**: `Indicates if commission payout is locked due to discrepancy`.
+5. Nothing to amend for **Establish field-level security** and **Add to page layouts**. Remember to **Save**.
+
+### Step 6: Configure System Permissions
+
+1. In Salesforce, go to **Setup** (click the gear icon in top-right corner).
+2. In the Quick Find box, type **Permission Sets**
+3. Click **New**
+4. Set **Label** to `API Login Access` and **API Name** will be `API_Login_Access` (auto-generated).
+5. **Session Activation Required** remains as deactivated.
+6. Set **License** as **--None--**, then **Save**
+7. Go to **Manage Assignments** → **Add Assignment**
+8. Select your profile (ignore other profile)
+9. Click **Next**, then click **Assign**, then click **Done**
+10. In the left sidebar, click **Permission Sets**
+11. Click **API Login Access**
+12. Scroll all the way down, and click **System Permissions**
+13. Press **Edit**
+14. In **System Permissions**, find this setting: **Use Any API Auth**
+15. Scroll all the way up, and click **Save**
 
 ### Salesforce Environment Variables
 
