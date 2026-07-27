@@ -184,31 +184,25 @@ SALESFORCE_INSTANCE_URL=https://test.salesforce.com
 6. Enter your **App Name** (e.g., "Sales Handoff Orchestrator") and select the wrokspace you created in the previous step to serve as your development environment.
 7. Click **Create App**.
 
-### Step 2: Enable Socket Mode (Optional)
-
-For production deployments without ngrok:
-1. In your app settings, go to **Socket Mode** and enable it.
-2. Generate an **App-Level Token** with `connections:write` scope.
-
-### Step 3: Configure OAuth Scopes
+### Step 2: Configure OAuth Scopes
 
 1. Navigate to [Slack API Dashboard](https://api.slack.com/apps) and select your app.
 2. Go to **OAuth & Permissions** under **Features** in the left sidebar.
 3. Scroll down to the Scopes section. Under **Bot Token Scopes**, click **Add an OAuth Scope**.Add the following scope: `chat:write` — To allow the bot to send messages (Ignore if `chat:write` scope has been added).
 
-### Step 4: Generate Bot Token
+### Step 3: Generate Bot Token
 
 1. Scroll back to the top of the page. Click **Install to Workspace**. Review the permissions and click **Allow**.
 2. Copy the **Bot User OAuth Token** (starts with `xoxb-`). Save this as `SLACK_BOT_TOKEN` in your `.env`.
 
-### Step 5: Enable Interactivity
+### Step 4: Enable Interactivity
 
 1. Go to **Interactivity & Shortcuts**.
 2. Enable **Interactivity**.
 3. Set the **Request URL** to: `https://your-app-domain.com/api/slack/interactive` or `https://your-ngrok-subdomain.ngrok.io/api/slack/interactive` (Only when Socket Mode is not enabled).
 4. Save changes.
 
-### Step 6: Invite Bot to Channels & Retrieve Channel ID
+### Step 5: Invite Bot to Channels & Retrieve Channel ID
 
 1. In Slack, go to your target channel's message box and type /invite @`BotName`, then press Enter. Alternatively, you can just mention the bot by typing @`BotName` in a message, and Slack will automatically ask if you want to add it to the channel.
 2. Look at the URL, you can spot your channel ID at the end of the URL. For the URL `app.slack.com/client/T0ABCDEFG9H/C0AA00ZBLN1`, the **Channel ID** is `C0AA00ZBLN1`.
@@ -385,8 +379,11 @@ python -m uvicorn src.main:app --host 0.0.0.0 --port 8001 --reload
 
 You should see output like:
 ```
-INFO:     Uvicorn running on http://0.0.0.0:8001
-INFO:     Application startup complete
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [44704] using WatchFiles
+INFO:     Started server process [29924]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
 ```
 
 ### Step 2: Verify API Endpoints
@@ -423,7 +420,7 @@ Expected response: `{"challenge": "test_challenge"}`
 Create a test opportunity in Salesforce and change its stage to "Closed Won":
 1. Log into Salesforce.
 2. Go to **Opportunities**.
-3. Create a new opportunity with required fields.
+3. Create a new opportunity with required fields. (Remember to attached any relevant sales document to the opportunity)
 4. Set the stage to **Closed Won**.
 5. Save.
 
