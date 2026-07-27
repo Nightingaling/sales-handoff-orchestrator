@@ -313,7 +313,7 @@ Your Jira instance URL will be in the format: `https://mycompany.atlassian.net`.
 JIRA_SERVER=https://your-domain.atlassian.net
 JIRA_USERNAME=your-email@example.com
 JIRA_API_TOKEN=your_jira_api_token
-JIRA_LEAD_ACCOUNT_ID=your_account_id_or_username
+JIRA_LEAD_ACCOUNT_ID=your_jira_lead_account_id
 ```
 
 ---
