@@ -34,8 +34,8 @@ If running locally, download and set up **ngrok** to expose your application to 
 
 ```bash
 # Download ngrok: https://ngrok.com/download
-# Run ngrok to expose port 8000
-ngrok http 8000
+# Run ngrok to expose port 8001
+ngrok http 8001
 ```
 
 This will provide a public URL like `https://your-subdomain.ngrok.io` that you'll use in webhook configurations.
@@ -380,24 +380,24 @@ else:
 ### Step 1: Start the FastAPI Server
 
 ```bash
-python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn src.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
 You should see output like:
 ```
-INFO:     Uvicorn running on http://0.0.0.0:8000
+INFO:     Uvicorn running on http://0.0.0.0:8001
 INFO:     Application startup complete
 ```
 
 ### Step 2: Verify API Endpoints
 
-Visit `http://localhost:8000/docs` to see the interactive API documentation (Swagger UI).
+Visit `http://localhost:8001/docs` to see the interactive API documentation (Swagger UI).
 
 ### Step 3: Expose Locally with ngrok (for Webhooks)
 
 In another terminal, run:
 ```bash
-ngrok http 8000
+ngrok http 8001
 ```
 
 You'll get a public URL like `https://your-subdomain.ngrok.io`. Use this URL in:
@@ -411,7 +411,7 @@ You'll get a public URL like `https://your-subdomain.ngrok.io`. Use this URL in:
 ### Test 1: Verify Slack Connection
 
 ```bash
-curl -X POST http://localhost:8000/api/slack/interactive \
+curl -X POST http://localhost:8001/api/slack/interactive \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d 'payload={"type":"url_verification","challenge":"test_challenge"}'
 ```
@@ -475,7 +475,7 @@ tail -f application.log
 **Error: "Webhook not receiving calls"**
 - Verify the Outbound Message is activated in Salesforce.
 - Ensure the Flow is activated and conditions are correct.
-- Test with ngrok: `ngrok http 8000` and update Salesforce with the public URL.
+- Test with ngrok: `ngrok http 8001` and update Salesforce with the public URL.
 
 ### Slack Issues
 
