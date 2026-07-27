@@ -75,7 +75,7 @@ class WatsonxConnector:
                 }
 
             prompt = f"""
-You are an AI assistant for a sales handoff process. Your task is to analyze sales documents, compare them to the official product documentation, and generate a set of assets for the post-sales team.
+You are an AI assistant for a sales handoff process. Your task is to analyze sales documents, compare them to the official product documentation, and generate a set of assets for the post-sales te[...]
 
 Here is the official product documentation for what is possible:
 ---
@@ -93,11 +93,11 @@ Here is the combined text from all sales documents (contracts, transcripts, etc.
 
 Based on the provided documents, perform the following tasks and provide the output as a single JSON object:
 
-1.  **Assess Document Relevance**: First, analyze the overall content of the sales documents. If the document text is clearly and completely unrelated to the product described in the product documentation (e.g., a random PDF, a scanned menu, a different product's contract), you MUST report a high-severity discrepancy stating that the document is irrelevant. If the document is irrelevant, you can skip the other steps.
+1.  **Assess Document Relevance**: First, analyze the overall content of the sales documents. If the document text is clearly and completely unrelated to the product described in the product docum[...]
 
 2.  **Extract Key Information**: If the document is relevant, identify the specific deliverables and timelines promised to the client.
             
-3.  **Analyze Discrepancies**: Cross-reference the extracted deliverables against the product documentation. A discrepancy should ONLY be reported if a deliverable from the sales documents is IMPOSSIBLE to achieve based on the product documentation. If a sales document requirement CAN be met by a specific tier (e.g., 'Omega Tier') or requires a special configuration mentioned in the documentation, it is NOT a discrepancy. Each discrepancy should have a 'reason' and a 'severity' score (1-4).
+3.  **Analyze Discrepancies**: Cross-reference the extracted deliverables against the product documentation. A discrepancy should ONLY be reported if a deliverable from the sales documents is IMP[...]
 
 4.  **Draft Kickoff Agenda**: As an expert Sales-to-Customer-Success handoff assistant, draft a kickoff meeting agenda based ONLY on the provided CRM data and sales documents.
 
@@ -142,7 +142,7 @@ Return only the JSON object. Example of the full JSON structure:
 """
 
             max_retries = 3
-            for i in range(max_retries):
+            for retry_attempt in range(max_retries):
                 try:
                     access_token = await self._get_iam_token()
                     
@@ -184,8 +184,8 @@ Return only the JSON object. Example of the full JSON structure:
                             # Check for 429 status code for rate limiting
                             if e.response is not None and e.response.status_code == 429:
                                 if attempt < max_retries - 1:
-                                    wait_time = backoff_factor * (2 ** attempt)
-                                    logger.warning(f"Watsonx API rate limit hit (429). Retrying in {wait_time:.2f} seconds...")
+                                    wait_time = 2 ** attempt
+                                    logger.warning(f"Watsonx API rate limit hit (429). Retrying in {wait_time} seconds...")
                                     await asyncio.sleep(wait_time)
                                 else:
                                     logger.error(f"Watsonx API rate limit hit. Max retries ({max_retries}) reached.")
@@ -244,20 +244,9 @@ Return only the JSON object. Example of the full JSON structure:
                     json_part = json_part.strip()
                     if not json_part:
                         logger.error("Extracted JSON part is empty after stripping. Raw response from Watsonx: %s", generated_text)
-                        if i < max_retries - 1:
-                            logger.warning(f"Retrying... ({i + 1}/{max_retries})")
-                            await asyncio.sleep(1) # Wait 1 second before retrying
-                            continue
-                        else:
-                            logger.error("Max retries reached, returning error.")
-                            return {
-                                "deliverables": [],
-                                "timelines": [],
-                                "discrepancies": [{"item": "Processing Error", "reason": "Failed to parse LLM response (empty JSON part)."}],
-                                "kickoff_agenda": "Could not be generated due to a processing error."
-                            }
+                        raise json.JSONDecodeError("Extracted JSON part is empty", generated_text, 0)
 
-                    # Now, try to parse the extracted JSON part, with a simple fix-up attempt.
+                    # Now, try to parse the extracted JSON part, with a fix-up attempt.
                     parsed_json = None
                     try:
                         parsed_json = json.loads(json_part)
@@ -270,7 +259,6 @@ Return only the JSON object. Example of the full JSON structure:
                                 "JSON fixing attempt resulted in an empty string. Cannot parse. Original part was: %s", 
                                 json_part
                             )
-                            # Re-raise the original error, as our fix failed.
                             raise e
                         
                         # The outer `try` will catch this if it fails again
@@ -278,29 +266,31 @@ Return only the JSON object. Example of the full JSON structure:
                     
                     return parsed_json
 
+                except (json.JSONDecodeError, IndexError) as e:
+                    logger.error(f"Failed to parse JSON from Watsonx response: {e}")
+                    if retry_attempt < max_retries - 1:
+                        wait_time = 2 ** retry_attempt
+                        logger.warning(f"Retrying due to JSON parsing failure... ({retry_attempt + 1}/{max_retries}) - waiting {wait_time}s")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    else:
+                        logger.error("Max retries reached for JSON parsing.")
+                        return {
+                            "deliverables": [],
+                            "timelines": [],
+                            "discrepancies": [{"item": "Processing Error", "reason": "Failed to parse LLM response after multiple retries."}],
+                            "kickoff_agenda": "Could not be generated due to a processing error."
+                        }
+                        
                 except requests.exceptions.RequestException as e:
                     logger.error(f"HTTP Error communicating with watsonx API: {e}")
                     if e.response is not None:
                         logger.error(f"Error details: {e.response.text}")
                     raise
-                except (json.JSONDecodeError, IndexError) as e:
-                    logger.error(f"Failed to parse JSON from Watsonx response: {e}", exc_info=True)
-                    logger.error(f"Raw response from Watsonx: {generated_text}")
-                    # Return a default error structure
-                    return {
-                        "deliverables": [],
-                        "timelines": [],
-                        "discrepancies": [{"item": "Processing Error", "reason": "Failed to parse LLM response."}],
-                        "kickoff_agenda": "Could not be generated due to a processing error."
-                    }
                 except Exception as e:
                     logger.error(f"An unexpected error occurred during handoff asset generation: {e}", exc_info=True)
-                    return {
-                        "deliverables": [],
-                        "timelines": [],
-                        "discrepancies": [{"item": "Processing Error", "reason": "An unexpected error occurred."}],
-                        "kickoff_agenda": "Could not be generated due to an unexpected error."
-                    }
+                    raise
+            
             return {
                 "deliverables": [],
                 "timelines": [],
