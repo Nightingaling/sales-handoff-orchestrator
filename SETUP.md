@@ -87,8 +87,8 @@ Important: Required Opportunity Attachments
 
 1. Log in to your Salesforce Developer organization.
 2. In Salesforce, go to your **User Profile** (click your avatar in top-right corner).
-3. Click **Settings**
-4. Your **Username** should look like: `email.************@agentforce.com`
+3. Click **Settings**.
+4. Your **Username** should look like: `email.************@agentforce.com`.
 
 ### Step 2: Reset Security Token (For Salesforce Environment Variables)
 
@@ -100,18 +100,18 @@ Important: Required Opportunity Attachments
 ### Step 3: Get Instance URL (For Salesforce Environment Variables)
 
 1. In Salesforce, go to **Setup** (click the gear icon in top-right corner).
-2. In the Quick Find box, type `Company Information`
-3. The **Instance** field is located under **Organization Edition**
-4. Your **Instance URL** will then be https://`your-instance`.salesforce.com
+2. In the Quick Find box, type `Company Information`.
+3. The **Instance** field is located under **Organization Edition**.
+4. Your **Instance URL** will then be https://`your-instance`.salesforce.com.
 
 ### Step 4: Configure Salesforce Outbound Messaging
 Follow the detailed steps in [SALESFORCE_WEBHOOK_SETUP.md](./SALESFORCE_WEBHOOK_SETUP.md) to:
-- Create an **Outbound Message** for Opportunity objects
-- Create a **Record-Triggered Flow** that triggers when Stage = "Closed Won"
-- Set the webhook endpoint to: `https://your-app-domain.com/api/salesforce/webhook` or `https://your-ngrok-subdomain.ngrok.io/api/salesforce/webhook`
+- Create an **Outbound Message** for Opportunity objects.
+- Create a **Record-Triggered Flow** that triggers when Stage = "Closed Won".
+- Set the webhook endpoint to: `https://your-app-domain.com/api/salesforce/webhook` or `https://your-ngrok-subdomain.ngrok.io/api/salesforce/webhook`.
 
 ### Step 5: Create Custom Fields
-Create a custom field `Commission_Lock__c` on the Opportunity object:
+Create a custom field `Commission_Lock__c` on the Opportunity object.
 
 1. Go to **Setup** → **Object Manager** → **Opportunity** → **Fields & Relationships**.
 2. Click **New** and select **Checkbox**.
@@ -150,7 +150,7 @@ To allow the application to authenticate with your Salesforce environment.
 > *Note: If this checkbox is greyed out, or you receive an API login error, you may need to go to **Setup > Release Updates** and ensure the test run for "Platform SOAP API login() Retirement" is **Disabled**.*
 
 ### Step 8: Whitelist Your IP Address
-Bypass the security token requirement
+Bypass the security token requirement.
 
 1. In Salesforce, go to **Setup** (click the gear icon in top-right corner).
 2. Search for `Network Access` in the Quick Find box.
@@ -194,7 +194,7 @@ For production deployments without ngrok:
 
 1. Navigate to [Slack API Dashboard](https://api.slack.com/apps) and select your app.
 2. Go to **OAuth & Permissions** under **Features** in the left sidebar.
-3. Scroll down to the Scopes section. Under **Bot Token Scopes**, click **Add an OAuth Scope**.Add the following scope: `chat:write` — To allow the bot to send messages (Ignore if `chat:write` scope has been added)
+3. Scroll down to the Scopes section. Under **Bot Token Scopes**, click **Add an OAuth Scope**.Add the following scope: `chat:write` — To allow the bot to send messages (Ignore if `chat:write` scope has been added).
 
 ### Step 4: Generate Bot Token
 
@@ -245,6 +245,7 @@ SLACK_TECH_REVIEW_CHANNEL_ID=C9876543210FEDCBA
 ## IBM Watsonx Setup
 
 ### Step 1: Access IBM Cloud
+
 Go to [dataplatform.cloud.ibm.com](https://dataplatform.cloud.ibm.com/registration/stepone?context=wx&preselect_region=true) to create an account or log in.
 
 ### Step 2: Create API Key & Get Project ID
@@ -261,6 +262,7 @@ Go to [dataplatform.cloud.ibm.com](https://dataplatform.cloud.ibm.com/registrati
 10. Now, the API key has been successfully created! Copy the API key or click download to save it. You won’t be able to see this API key again, so you can’t retrieve it later.
 
 ### Step 3: Verify watsonx Model Availability
+
 The system uses IBM's foundation models via watsonx.ai. Verify that your region supports the model being used in `src/watsonx_connector.py` (currently configured for `meta-llama/llama-3-3-70b-instruct`).
 
 **Supported Regions:**
