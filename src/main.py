@@ -114,13 +114,29 @@ async def slack_interactive_endpoint(request: Request, background_tasks: Backgro
             
             if action["action_id"] == "approve_provision":
                 logger.info(f"Received 'approve_provision' action for opportunity ID: {opportunity_id} from user {user_name}")
+
+                # Update the Slack message immediately to remove buttons
+                updated_blocks = [
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": f"✅ *Handoff Approved by {user_name}.* The project is now being provisioned in Jira."
+                        }
+                    }
+                ]
+                
+                # This replaces the original message so it cannot be clicked again
+                requests.post(response_url, json={
+                    "replace_original": "true", 
+                    "blocks": updated_blocks
+                })
                 
                 # Run the provisioning in the background
                 background_tasks.add_task(app.state.orchestrator.provision_jira_project, opportunity_id)
                 
-                # Let the user know the process has started and update the original message
-                response_text = f"✅ Approved by {user_name}. Provisioning has started."
-                return {"text": response_text, "response_type": "in_channel", "replace_original": True}
+                # Return a 200 OK to Slack immediately
+                return {"status": "ok"}
 
             elif action["action_id"] == "reject_handoff":
                 logger.info(f"Received 'reject_handoff' action for opportunity ID: {opportunity_id} from user {user_name}")

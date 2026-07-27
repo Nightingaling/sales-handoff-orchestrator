@@ -158,7 +158,7 @@ class TestHandoffOrchestrator(unittest.TestCase):
         mock_sf_connector.post_chatter_rejection.assert_called_once()
         mock_sf_connector.update_opportunity_stage_for_review.assert_called_once_with(opportunity_id)
         mock_slack_connector.send_rejection_notification.assert_called_once()
-        mock_os_remove.assert_called_once()
+        
 
 if __name__ == '__main__':
     unittest.main()

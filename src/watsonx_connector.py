@@ -61,6 +61,19 @@ class WatsonxConnector:
         """
         async with self._semaphore:
             
+            # Pre-emptive check for empty or very short document text.
+            if not document_text or len(document_text.strip()) < 50:
+                return {
+                    "deliverables": [],
+                    "timelines": [],
+                    "discrepancies": [{
+                        "item": "Empty or Invalid Document",
+                        "reason": "The document is either empty, could not be parsed, or contains no relevant text. This is a critical issue as no terms can be verified.",
+                        "severity": 4 
+                    }],
+                    "kickoff_agenda": "Could not be generated. The attached sales document appears to be empty or unreadable."
+                }
+
             prompt = f"""
 You are an AI assistant for a sales handoff process. Your task is to analyze sales documents, compare them to the official product documentation, and generate a set of assets for the post-sales team.
 
@@ -80,11 +93,13 @@ Here is the combined text from all sales documents (contracts, transcripts, etc.
 
 Based on the provided documents, perform the following tasks and provide the output as a single JSON object:
 
-1.  **Extract Key Information**: Identify the specific deliverables and timelines promised to the client.
-            
-2.  **Analyze Discrepancies**: Cross-reference the extracted deliverables against the product documentation. Identify any items that are not supported, require a higher tier, or are an unclear. Each discrepancy should have a 'reason'.
+1.  **Assess Document Relevance**: First, analyze the overall content of the sales documents. If the document text is clearly and completely unrelated to the product described in the product documentation (e.g., a random PDF, a scanned menu, a different product's contract), you MUST report a high-severity discrepancy stating that the document is irrelevant. If the document is irrelevant, you can skip the other steps.
 
-3.  **Draft Kickoff Agenda**: As an expert Sales-to-Customer-Success handoff assistant, draft a kickoff meeting agenda based ONLY on the provided CRM data and sales documents.
+2.  **Extract Key Information**: If the document is relevant, identify the specific deliverables and timelines promised to the client.
+            
+3.  **Analyze Discrepancies**: Cross-reference the extracted deliverables against the product documentation. A discrepancy should ONLY be reported if a deliverable from the sales documents is IMPOSSIBLE to achieve based on the product documentation. If a sales document requirement CAN be met by a specific tier (e.g., 'Omega Tier') or requires a special configuration mentioned in the documentation, it is NOT a discrepancy. Each discrepancy should have a 'reason' and a 'severity' score (1-4).
+
+4.  **Draft Kickoff Agenda**: As an expert Sales-to-Customer-Success handoff assistant, draft a kickoff meeting agenda based ONLY on the provided CRM data and sales documents.
 
     CRITICAL INSTRUCTIONS FOR KICKOFF AGENDA:
     a. NO PLACEHOLDERS: Do not use generic filler like "To be discussed" or "TBD". You MUST extract the exact deliverables, quantities, and dates from the provided text.
@@ -126,160 +141,170 @@ Return only the JSON object. Example of the full JSON structure:
 }}
 """
 
-            generated_text = ""
-            max_retries = 5
-            backoff_factor = 1.5
-
-            try:
-                access_token = await self._get_iam_token()
-                
-                # watsonx.ai Generation API endpoint (must include the version date parameter)
-                generation_url = f"{config.WATSONX_URL}/ml/v1/text/generation?version=2023-05-29"
-                
-                headers = {
-                    "Authorization": f"Bearer {access_token}",
-                    "Content-Type": "application/json",
-                    "Accept": "application/json"
-                }
-                
-                # Configure the model and parameters
-                # Note: The model_id specified here MUST be available in your IBM Cloud region.
-                # If you encounter a "model_not_found" error, please check the IBM Cloud Catalog
-                # to find a suitable model for your region and update the 'model_id' accordingly.
-                payload = {
-                    "model_id": "meta-llama/llama-3-3-70b-instruct",
-                    "project_id": config.WATSONX_PROJECT_ID,
-                    "input": prompt,
-                    "parameters": {
-                        "decoding_method": "greedy",
-                        "max_new_tokens": 2048, # Max tokens for the LLM response — raised from 1500 to prevent truncated JSON
-                        "min_new_tokens": 1,
-                        "repetition_penalty": 1.1
+            max_retries = 3
+            for i in range(max_retries):
+                try:
+                    access_token = await self._get_iam_token()
+                    
+                    # watsonx.ai Generation API endpoint (must include the version date parameter)
+                    generation_url = f"{config.WATSONX_URL}/ml/v1/text/generation?version=2023-05-29"
+                    
+                    headers = {
+                        "Authorization": f"Bearer {access_token}",
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
                     }
-                }
+                    
+                    # Configure the model and parameters
+                    # Note: The model_id specified here MUST be available in your IBM Cloud region.
+                    # If you encounter a "model_not_found" error, please check the IBM Cloud Catalog
+                    # to find a suitable model for your region and update the 'model_id' accordingly.
+                    payload = {
+                        "model_id": "meta-llama/llama-3-3-70b-instruct",
+                        "project_id": config.WATSONX_PROJECT_ID,
+                        "input": prompt,
+                        "parameters": {
+                            "decoding_method": "greedy",
+                            "max_new_tokens": 2048, # Max tokens for the LLM response — raised from 1500 to prevent truncated JSON
+                            "min_new_tokens": 1,
+                            "repetition_penalty": 1.1
+                        }
+                    }
 
-                response = None
-                for attempt in range(max_retries):
-                    try:
-                        logger.info(f"Sending prompt to watsonx API (Attempt {attempt + 1}/{max_retries})...")
-                        response = await asyncio.to_thread(self._session.post, generation_url, headers=headers, json=payload)
-                        response.raise_for_status() # Raise an exception for bad status codes
-                        # If successful, break the loop
-                        logger.info("Successfully received response from watsonx API.")
-                        break
-                    except requests.exceptions.RequestException as e:
-                        # Check for 429 status code for rate limiting
-                        if e.response is not None and e.response.status_code == 429:
-                            if attempt < max_retries - 1:
-                                wait_time = backoff_factor * (2 ** attempt)
-                                logger.warning(f"Watsonx API rate limit hit (429). Retrying in {wait_time:.2f} seconds...")
-                                await asyncio.sleep(wait_time)
+                    response = None
+                    for attempt in range(max_retries):
+                        try:
+                            logger.info(f"Sending prompt to watsonx API (Attempt {attempt + 1}/{max_retries})...")
+                            response = await asyncio.to_thread(self._session.post, generation_url, headers=headers, json=payload)
+                            response.raise_for_status() # Raise an exception for bad status codes
+                            # If successful, break the loop
+                            logger.info("Successfully received response from watsonx API.")
+                            break
+                        except requests.exceptions.RequestException as e:
+                            # Check for 429 status code for rate limiting
+                            if e.response is not None and e.response.status_code == 429:
+                                if attempt < max_retries - 1:
+                                    wait_time = backoff_factor * (2 ** attempt)
+                                    logger.warning(f"Watsonx API rate limit hit (429). Retrying in {wait_time:.2f} seconds...")
+                                    await asyncio.sleep(wait_time)
+                                else:
+                                    logger.error(f"Watsonx API rate limit hit. Max retries ({max_retries}) reached.")
+                                    raise # Re-raise the final exception
                             else:
-                                logger.error(f"Watsonx API rate limit hit. Max retries ({max_retries}) reached.")
-                                raise # Re-raise the final exception
-                        else:
-                            # For other HTTP errors (non-429), we re-raise immediately.
-                            raise
-                
-                if response is None:
-                    # This case should ideally not be reached if the loop always raises or breaks. It's a safeguard.
-                    raise Exception("Failed to get a valid response from Watsonx API after all retries.")
-                
-                # Extract the generated text from the JSON response
-                result = response.json()
-                generated_text = result["results"][0]["generated_text"]
-                logger.debug(f"Raw LLM response received (length={len(generated_text)}):\n{generated_text}")
+                                # For other HTTP errors (non-429), we re-raise immediately.
+                                raise
+                    
+                    if response is None:
+                        # This case should ideally not be reached if the loop always raises or breaks. It's a safeguard.
+                        raise Exception("Failed to get a valid response from Watsonx API after all retries.")
+                    
+                    # Extract the generated text from the JSON response
+                    result = response.json()
+                    generated_text = result["results"][0]["generated_text"]
+                    logger.debug(f"Raw LLM response received (length={len(generated_text)}):\n{generated_text}")
 
-                if not generated_text or not generated_text.strip():
-                    logger.error("Watsonx API returned an empty or whitespace-only response.")
-                    raise json.JSONDecodeError("Watsonx API returned an empty response.", generated_text, 0)
-                
-                # Clean the response to get only the JSON part.
-                # The model often returns explanatory text and multiple JSON blocks.
-                # We'll find all JSON blocks wrapped in ```json ... ``` and use the last one.
-                json_part = ""
-                json_matches = re.findall(r"```json\s*([\s\S]+?)\s*```", generated_text)
-                
-                if json_matches:
-                    # Use the content of the last JSON block found
-                    json_part = json_matches[-1]
-                else:
-                    # If no markdown block is found, it's likely the response contains raw JSON
-                    # possibly with leading/trailing text. The 'Extra data' error happens when
-                    # there's text *after* the JSON.
-                    # A robust way to handle this is to find the last complete JSON object.
-                    last_brace = generated_text.rfind('}')
-                    if last_brace == -1:
-                        # If there's no '}', we can't find a JSON object.
-                        raise json.JSONDecodeError("No JSON object found in response", generated_text, 0)
-
-                    # Scan backwards from the last '}' to find its matching '{'.
-                    # This correctly isolates the last JSON object from any surrounding text.
-                    balance = 0
-                    for i in range(last_brace, -1, -1):
-                        if generated_text[i] == '}':
-                            balance += 1
-                        elif generated_text[i] == '{':
-                            balance -= 1
-                            if balance == 0:
-                                json_part = generated_text[i:last_brace + 1]
-                                break
+                    if not generated_text or not generated_text.strip():
+                        logger.error("Watsonx API returned an empty or whitespace-only response.")
+                        raise json.JSONDecodeError("Watsonx API returned an empty response.", generated_text, 0)
+                    
+                    # Clean the response to get only the JSON part.
+                    # The model often returns explanatory text and multiple JSON blocks.
+                    # We'll find all JSON blocks wrapped in ```json ... ``` and use the last one.
+                    json_part = ""
+                    json_matches = re.findall(r"```json\s*([\s\S]+?)\s*```", generated_text)
+                    
+                    if json_matches:
+                        # Use the content of the last JSON block found
+                        json_part = json_matches[-1]
                     else:
-                        # This 'else' belongs to the 'for' loop, executed if 'break' is not hit.
-                        raise json.JSONDecodeError("Could not find a complete JSON object.", generated_text, 0)
-                
-                json_part = json_part.strip()
-                if not json_part:
-                    logger.error("Extracted JSON part is empty after stripping. Raw response from Watsonx: %s", generated_text)
+                        # If no markdown block is found, it's likely the response contains raw JSON
+                        # possibly with leading/trailing text. The 'Extra data' error happens when
+                        # there's text *after* the JSON.
+                        # A robust way to handle this is to find the last complete JSON object.
+                        last_brace = generated_text.rfind('}')
+                        if last_brace == -1:
+                            # If there's no '}', we can't find a JSON object.
+                            raise json.JSONDecodeError("No JSON object found in response", generated_text, 0)
+
+                        # Scan backwards from the last '}' to find its matching '{'.
+                        # This correctly isolates the last JSON object from any surrounding text.
+                        balance = 0
+                        for i in range(last_brace, -1, -1):
+                            if generated_text[i] == '}':
+                                balance += 1
+                            elif generated_text[i] == '{':
+                                balance -= 1
+                                if balance == 0:
+                                    json_part = generated_text[i:last_brace + 1]
+                                    break
+                        else:
+                            # This 'else' belongs to the 'for' loop, executed if 'break' is not hit.
+                            raise json.JSONDecodeError("Could not find a complete JSON object.", generated_text, 0)
+                    
+                    json_part = json_part.strip()
+                    if not json_part:
+                        logger.error("Extracted JSON part is empty after stripping. Raw response from Watsonx: %s", generated_text)
+                        if i < max_retries - 1:
+                            logger.warning(f"Retrying... ({i + 1}/{max_retries})")
+                            await asyncio.sleep(1) # Wait 1 second before retrying
+                            continue
+                        else:
+                            logger.error("Max retries reached, returning error.")
+                            return {
+                                "deliverables": [],
+                                "timelines": [],
+                                "discrepancies": [{"item": "Processing Error", "reason": "Failed to parse LLM response (empty JSON part)."}],
+                                "kickoff_agenda": "Could not be generated due to a processing error."
+                            }
+
+                    # Now, try to parse the extracted JSON part, with a simple fix-up attempt.
+                    parsed_json = None
+                    try:
+                        parsed_json = json.loads(json_part)
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Initial JSON parsing failed: {e}. Attempting to fix and re-parse.")
+                        # Attempt to fix common errors like trailing commas before re-parsing.
+                        fixed_json = re.sub(r",\s*([\}\]])", r"\1", json_part).strip()
+                        if not fixed_json:
+                            logger.error(
+                                "JSON fixing attempt resulted in an empty string. Cannot parse. Original part was: %s", 
+                                json_part
+                            )
+                            # Re-raise the original error, as our fix failed.
+                            raise e
+                        
+                        # The outer `try` will catch this if it fails again
+                        parsed_json = json.loads(fixed_json)
+                    
+                    return parsed_json
+
+                except requests.exceptions.RequestException as e:
+                    logger.error(f"HTTP Error communicating with watsonx API: {e}")
+                    if e.response is not None:
+                        logger.error(f"Error details: {e.response.text}")
+                    raise
+                except (json.JSONDecodeError, IndexError) as e:
+                    logger.error(f"Failed to parse JSON from Watsonx response: {e}", exc_info=True)
+                    logger.error(f"Raw response from Watsonx: {generated_text}")
+                    # Return a default error structure
                     return {
                         "deliverables": [],
                         "timelines": [],
-                        "discrepancies": [{"item": "Processing Error", "reason": "Failed to parse LLM response (empty JSON part)."}],
+                        "discrepancies": [{"item": "Processing Error", "reason": "Failed to parse LLM response."}],
                         "kickoff_agenda": "Could not be generated due to a processing error."
                     }
-
-                # Now, try to parse the extracted JSON part, with a simple fix-up attempt.
-                parsed_json = None
-                try:
-                    parsed_json = json.loads(json_part)
-                except json.JSONDecodeError as e:
-                    logger.warning(f"Initial JSON parsing failed: {e}. Attempting to fix and re-parse.")
-                    # Attempt to fix common errors like trailing commas before re-parsing.
-                    fixed_json = re.sub(r",\s*([\}\]])", r"\1", json_part).strip()
-                    if not fixed_json:
-                        logger.error(
-                            "JSON fixing attempt resulted in an empty string. Cannot parse. Original part was: %s", 
-                            json_part
-                        )
-                        # Re-raise the original error, as our fix failed.
-                        raise e
-                    
-                    # The outer `try` will catch this if it fails again
-                    parsed_json = json.loads(fixed_json)
-                
-                return parsed_json
-
-            except requests.exceptions.RequestException as e:
-                logger.error(f"HTTP Error communicating with watsonx API: {e}")
-                if e.response is not None:
-                    logger.error(f"Error details: {e.response.text}")
-                raise
-            except (json.JSONDecodeError, IndexError) as e:
-                logger.error(f"Failed to parse JSON from Watsonx response: {e}", exc_info=True)
-                logger.error(f"Raw response from Watsonx: {generated_text}")
-                # Return a default error structure
-                return {
-                    "deliverables": [],
-                    "timelines": [],
-                    "discrepancies": [{"item": "Processing Error", "reason": "Failed to parse LLM response."}],
-                    "kickoff_agenda": "Could not be generated due to a processing error."
-                }
-            except Exception as e:
-                logger.error(f"An unexpected error occurred during handoff asset generation: {e}", exc_info=True)
-                return {
-                    "deliverables": [],
-                    "timelines": [],
-                    "discrepancies": [{"item": "Processing Error", "reason": "An unexpected error occurred."}],
-                    "kickoff_agenda": "Could not be generated due to an unexpected error."
-                }
+                except Exception as e:
+                    logger.error(f"An unexpected error occurred during handoff asset generation: {e}", exc_info=True)
+                    return {
+                        "deliverables": [],
+                        "timelines": [],
+                        "discrepancies": [{"item": "Processing Error", "reason": "An unexpected error occurred."}],
+                        "kickoff_agenda": "Could not be generated due to an unexpected error."
+                    }
+            return {
+                "deliverables": [],
+                "timelines": [],
+                "discrepancies": [{"item": "Processing Error", "reason": "An unexpected error occurred."}],
+                "kickoff_agenda": "Could not be generated due to an unexpected error."
+            }
 

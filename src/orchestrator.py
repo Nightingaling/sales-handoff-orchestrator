@@ -78,6 +78,19 @@ class HandoffOrchestrator:
                 return {"status": "error", "message": f"Failed to generate handoff assets due to a Watsonx API error: {e}"}
             logger.info("Watsonx processing complete.")
 
+            # 4a. Check for high-severity discrepancies and notify tech review channel
+            discrepancies = handoff_assets.get("discrepancies", [])
+            high_severity_discrepancies = [
+                d for d in discrepancies if d.get("severity", 1) >= 3
+            ]
+
+            if high_severity_discrepancies:
+                logger.info(f"High-severity discrepancies found for opportunity {opportunity['Name']}. Notifying tech review channel.")
+                await self.slack_connector.send_tech_review_notification(
+                    opportunity_name=opportunity['Name'],
+                    discrepancies=high_severity_discrepancies
+                )
+
             # 5. Save State for Slack Approval
             state_to_save = {
                 "opportunity": opportunity,
@@ -288,35 +301,55 @@ class HandoffOrchestrator:
                 current_ext = current_ext.lower().strip('.')
 
                 logger.info(f"Processing document '{title}'. FileType from Salesforce: '{file_type}', Ext from title: '{current_ext}'")
-                
-                # Heuristic to guess file type based on title if other methods fail
-                guessed_ext = ''
-                title_lower = title.lower()
-                if 'note' in title_lower:
-                    guessed_ext = '.txt'
-                elif 'agreement' in title_lower or 'contract' in title_lower or 'sow' in title_lower:
-                    guessed_ext = '.pdf'
 
-                if current_ext in ['pdf', 'docx', 'txt']:
-                    file_path = os.path.join(temp_dir, f"{version_id}_{title}")
-                elif file_type in ['pdf', 'docx', 'txt']:
-                    file_path = os.path.join(temp_dir, f"{version_id}_{title}.{file_type}")
-                elif guessed_ext:
-                    file_path = os.path.join(temp_dir, f"{version_id}_{title}{guessed_ext}")
-                else:
-                    logger.warning(f"Unsupported or unknown file type for document '{title}'. Could not guess extension. Skipping.")
+                # 1. Fetch document content FIRST before determining the path
+                doc_content = await self.salesforce_connector.get_document(version_id)
+                
+                if not doc_content:
+                    logger.warning(f"Could not retrieve document content for {title} (Version ID: {version_id})")
                     continue
 
-                # Get document content from Salesforce
-                doc_content = await self.salesforce_connector.get_document(version_id)
+                # 2. Determine file extension dynamically (True File Type)
+                determined_ext = ""
 
-                if doc_content:
-                    async with aiofiles.open(file_path, "wb") as f:
-                        await f.write(doc_content)
-                    
-                    parse_tasks.append(self.document_parser.parse_document(file_path))
+                # Check file signatures (magic bytes) - this never lies
+                if doc_content.startswith(b'%PDF'):
+                    determined_ext = 'pdf'
+                elif doc_content.startswith(b'PK\x03\x04'): 
+                    # DOCX files are zipped XML archives, so they start with standard ZIP bytes
+                    determined_ext = 'docx'
+                # Check title extension
+                elif current_ext in ['pdf', 'docx', 'txt']:
+                    determined_ext = current_ext
+                # Check Salesforce FileType (accounting for Salesforce's weird naming conventions)
+                elif file_type == 'pdf':
+                    determined_ext = 'pdf'
+                elif file_type in ['word_x', 'docx']: # Salesforce uses WORD_X for docx
+                    determined_ext = 'docx'
+                elif file_type in ['text', 'txt']:
+                    determined_ext = 'txt'
+                # Final Heuristic Fallback
                 else:
-                    logger.warning(f"Could not retrieve document content for {title} (Version ID: {version_id})")
+                    title_lower = title.lower()
+                    if 'note' in title_lower:
+                        determined_ext = 'txt'
+                    elif any(kw in title_lower for kw in ['agreement', 'contract', 'sow']):
+                        determined_ext = 'pdf'
+                    else:
+                        logger.warning(f"Could not strictly determine file type for '{title}'. Defaulting to PDF.")
+                        determined_ext = 'pdf'
+
+                # 3. Construct the file name safely
+                if title.lower().endswith(f".{determined_ext}"):
+                    file_path = os.path.join(temp_dir, f"{version_id}_{title}")
+                else:
+                    file_path = os.path.join(temp_dir, f"{version_id}_{title}.{determined_ext}")
+
+                # Write the already-downloaded content to disk
+                async with aiofiles.open(file_path, "wb") as f:
+                    await f.write(doc_content)
+                
+                parse_tasks.append(self.document_parser.parse_document(file_path))
 
             if parse_tasks:
                 parsed_results = await asyncio.gather(*parse_tasks)
