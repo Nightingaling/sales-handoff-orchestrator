@@ -14,6 +14,9 @@ This guide provides step-by-step instructions to configure all required integrat
 8. [Environment Configuration](#environment-configuration)
 9. [Running the Application](#running-the-application)
 10. [Testing the Integration](#testing-the-integration)
+11. [Troubleshooting](#troubleshooting)
+12. [Security Best Practices](#security-best-practices)
+13. [Next Steps](#next-steps)
 
 ---
 
