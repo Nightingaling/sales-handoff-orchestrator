@@ -208,11 +208,10 @@ For production deployments without ngrok:
 3. Set the **Request URL** to: `https://your-app-domain.com/api/slack/interactive` or `https://your-ngrok-subdomain.ngrok.io/api/slack/interactive` (Only when Socket Mode is not enabled).
 4. Save changes.
 
-### Step 6: Invite Bot to Channels
+### Step 6: Invite Bot to Channels & Retrieve Channel ID
 
 1. In Slack, go to your target channel's message box and type /invite @`BotName`, then press Enter. Alternatively, you can just mention the bot by typing @`BotName` in a message, and Slack will automatically ask if you want to add it to the channel.
-2. Look at the URL, you can spot your channel ID at the end of the URL.
-<img width="362" height="32" alt="image" src="https://github.com/user-attachments/assets/400fa0cc-3d8a-40bc-b128-7b3c6ee9d933" />
+2. Look at the URL, you can spot your channel ID at the end of the URL. For the URL `app.slack.com/client/T0ABCDEFG9H/C0AA00ZBLN1`, the **Channel ID** is `C0AA00ZBLN1`.
 
 **Note:** The `SLACK_TECH_REVIEW_CHANNEL_ID` is used for flagging high-severity discrepancies. Use the same channel as `SLACK_CHANNEL_ID` if you don't have a separate review channel.
 
@@ -289,48 +288,24 @@ WATSONX_URL=https://us-south.ml.cloud.ibm.com
 
 ### Step 2: Get Your Instance URL
 
-Your Jira instance URL will be in the format: `https://your-domain.atlassian.net`
+Your Jira instance URL will be in the format: `https://mycompany.atlassian.net`.
 
 ### Step 3: Create or Get API Token
 
-**For Jira Cloud:**
 1. Go to [id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens).
 2. Click **Create API token**.
 3. Give it a name (e.g., "Sales Handoff Orchestrator").
-4. Copy the generated token.
+4. Set your token expiration to one year, or a custom duration.
+5. Copy your API token and save it somewhere safe. You can't recover the API token after you're done with this step.
 
-**For Jira Server (Self-Hosted):**
-1. Go to your Jira instance → **Profile** (top-right) → **Settings**.
-2. Click **API tokens** → **Create token**.
-3. Copy the token.
+### Step 4: Get Your Lead Account ID and Username
 
-### Step 4: Get Your Account ID
-
-**For Jira Cloud:**
-1. Go to [id.atlassian.com/manage-profile/profile-information](https://id.atlassian.com/manage-profile/profile-information).
-2. Copy your **Account ID** (looks like a UUID).
-
-Alternatively, use the API:
-```bash
-curl -u your-email@example.com:YOUR_API_TOKEN \
-  https://your-domain.atlassian.net/rest/api/3/myself
-```
-
-Look for the `accountId` field in the response.
-
-**For Jira Server:**
-- Use your **username** instead of the Account ID.
-
-### Step 5: Verify Project Permissions
-
-Ensure your user has permissions to:
-- Create projects
-- Create issues
-- Create epics (if using Scrum boards)
-
-### Step 6: Configure Project Lead
-
-The `JIRA_LEAD_ACCOUNT_ID` should be set to the user who will be the lead/owner of newly created projects.
+1. Open your Jira Cloud instance.
+2. Click your profile picture.
+3. Click **Profile**.
+4. Look at the URL in your browser address bar.
+5. Copy the alphanumeric string between `/people/` and `?cloudId=`. For the URL `domain.atlassian.net/jira/people/557058:f58131cb-b67d?cloudId=1as23f45-6hhj-76hh-yy13-123ert34567g`, the **Lead Account ID** is `557058:f58131cb-b67d`.
+6. On the same page, note that your Jira **Username** is the email address located in the **Email** field.
 
 ### Jira Environment Variables
 
