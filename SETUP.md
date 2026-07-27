@@ -205,15 +205,32 @@ For production deployments without ngrok:
 
 1. Go to **Interactivity & Shortcuts**.
 2. Enable **Interactivity**.
-3. Set the **Request URL** to: `https://your-app-domain.com/api/slack/interactive` or `https://your-ngrok-subdomain.ngrok.io/api/slack/interactive`
+3. Set the **Request URL** to: `https://your-app-domain.com/api/slack/interactive` or `https://your-ngrok-subdomain.ngrok.io/api/slack/interactive` (Only when Socket Mode is not enabled).
 4. Save changes.
 
 ### Step 6: Invite Bot to Channels
 
-1. In Slack, go to your target channel.
-2. Click the channel name → **Integrations** → **Apps**.
-3. Add your bot to the channel.
-4. Note the **Channel ID** (find it in channel details or URL).
+1. In Slack, go to your target channel's message box and type /invite @`BotName`, then press Enter. Alternatively, you can just mention the bot by typing @`BotName` in a message, and Slack will automatically ask if you want to add it to the channel.
+2. Look at the URL, you can spot your channel ID at the end of the URL.
+<img width="362" height="32" alt="image" src="https://github.com/user-attachments/assets/400fa0cc-3d8a-40bc-b128-7b3c6ee9d933" />
+
+**Note:** The `SLACK_TECH_REVIEW_CHANNEL_ID` is used for flagging high-severity discrepancies. Use the same channel as `SLACK_CHANNEL_ID` if you don't have a separate review channel.
+
+For example, your `.env` file should look something like this (if you choose to use separate channels):
+```
+# ... other environment variables ...
+SLACK_BOT_TOKEN="xoxb-your-slack-bot-token"
+SLACK_CHANNEL_ID="your-main-channel-id"
+SLACK_TECH_REVIEW_CHANNEL_ID="your-tech-review-channel-id"
+```
+
+Or, if you decide to use one all-purpose channel:
+```
+# ... other environment variables ...
+SLACK_BOT_TOKEN="xoxb-your-slack-bot-token"
+SLACK_CHANNEL_ID="your-main-channel-id"
+SLACK_TECH_REVIEW_CHANNEL_ID="your-main-channel-id" # Same ID as above
+```
 
 ### Slack Environment Variables
 
@@ -222,8 +239,6 @@ SLACK_BOT_TOKEN=xoxb-your-slack-bot-token
 SLACK_CHANNEL_ID=C123456789ABCDEF
 SLACK_TECH_REVIEW_CHANNEL_ID=C9876543210FEDCBA
 ```
-
-**Note:** The `SLACK_TECH_REVIEW_CHANNEL_ID` is used for flagging high-severity discrepancies. Use the same channel as `SLACK_CHANNEL_ID` if you don't have a separate review channel.
 
 ---
 
@@ -248,6 +263,11 @@ Go to [dataplatform.cloud.ibm.com](https://dataplatform.cloud.ibm.com/registrati
 ### Step 3: Verify watsonx Model Availability
 The system uses IBM's foundation models via watsonx.ai. Verify that your region supports the model being used in `src/watsonx_connector.py` (currently configured for `meta-llama/llama-3-3-70b-instruct`).
 
+**Supported Regions:**
+- `https://us-south.ml.cloud.ibm.com` (US South)
+- `https://eu-gb.ml.cloud.ibm.com` (London)
+- `https://jp-tok.ml.cloud.ibm.com` (Tokyo)
+
 ### Watsonx Environment Variables
 
 ```
@@ -255,11 +275,6 @@ WATSONX_API_KEY=your_ibm_api_key
 WATSONX_PROJECT_ID=your_watsonx_project_id
 WATSONX_URL=https://us-south.ml.cloud.ibm.com
 ```
-
-**Supported Regions:**
-- `https://us-south.ml.cloud.ibm.com` (US South)
-- `https://eu-gb.ml.cloud.ibm.com` (London)
-- `https://jp-tok.ml.cloud.ibm.com` (Tokyo)
 
 ---
 
