@@ -426,19 +426,19 @@ Create a test opportunity in Salesforce and change its stage to "Closed Won":
 
 Check your application logs. You should see:
 ```
-INFO: Received Salesforce webhook for Opportunity ID: [ID]
-INFO: Processing opportunity in background...
+INFO: 141.163.205.255:0 -"POST /api/salesforce/webhook HTTP/1.1" 200 OK
 ```
 
 ### Test 3: Check Slack Messages
 
 After triggering a handoff from Salesforce:
 1. Go to your Slack channel specified in `SLACK_CHANNEL_ID`.
-2. You should see an approval message with:
+2. You should see an Slack message with:
    - Deal details (account name, amount, AE name)
    - AI-generated discrepancies (if any)
    - Drafted kickoff agenda
-   - Approval buttons
+   - Approval/reject buttons
+3. Any high-level discrepancies will be notified in Slack Tech Review channel in `SLACK_TECH_REVIEW_CHANNEL_ID`.
 
 ### Test 4: Verify Jira Project Creation
 
@@ -447,16 +447,13 @@ After approving a handoff in Slack:
 2. You should see a new project created with the format: `Onboarding: [Opportunity Name]`
 3. An Epic with sub-tasks for each deliverable should be created.
 
-### Test 5: Check Application Logs
+### Test 5: Verifying a Rejected Opportunity Handoff
 
-Monitor logs for errors:
-
-```bash
-# If running with logging enabled
-tail -f application.log
-
-# Or check console output during development
-```
+After rejecting a handoff in Slack:
+1. Go to your **Opportunity** in Salesforce
+2. You should see the stage change from **Closed Won** to **Needs Review**.
+3. In Chatter, you can find messages indicating that a handoff was rejected, along with the reasons for the rejection.
+4. Upon updating the required documentation within the Opportunity, choose an appropriate stage to continue the workflow. 
 
 ---
 
