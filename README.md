@@ -1,4 +1,5 @@
 # Sales Handoff Orchestrator
+<img width="2800" height="799" alt="Background Image" src="https://github.com/user-attachments/assets/fe3bd603-407f-4c3b-bdd6-b622b691929a" />
 
 ## Problem Statement
 
