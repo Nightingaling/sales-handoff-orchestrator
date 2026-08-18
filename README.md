@@ -83,3 +83,10 @@ Beyond fixing bugs, IBM Bob was used to implement net-new requirements based on 
 
     * **Creating Methods:** It drafted a new `send_slack_approval_message(deal_data)` method for the `SlackConnector` class, correctly mapping dictionary keys to a Slack Block Kit UI layout.
     * **Dynamic Problem Solving:** During the endpoint implementation, Bob's initial `search_and_replace` diff tool failed due to hidden characters in the file. It intelligently adapted to this failure and decided to write the `src/main.py` file directly to bypass the error.
+
+## Judges' Feedback
+**Judge 1:**
+> "Real, verified watsonx.ai integration with a genuine IAM token flow, not mocked, and honestly documented as using Llama 3.3 rather than falsely claiming Granite. Four legitimate system integrations (Salesforce, Jira, Slack, watsonx), clean passing tests, and a sensible human-approval gate before any Jira actions fire."
+
+**Judge 2:**
+> "Very interesting. Liked the Slack integration and the way the human element was put in the mix."
